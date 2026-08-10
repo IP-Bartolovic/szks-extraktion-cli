@@ -190,26 +190,39 @@ EINHEITEN
 Übernimm die Einheit so, wie sie dasteht — auch dann, wenn das Feld eine andere erwartet
 ("40 Meter" bleibt 40 mit unit "Meter", nicht 40000 mm). mmWS und mmH₂O bezeichnen
 dasselbe. Rechne NICHTS um; das passiert nachgelagert im Code, wo es exakt ist.
-Ein WERTEBEREICH in einem Zahlenfeld wird auf seinen HÖCHSTWERT abgebildet:
-    "430–460 °C"              → 460
-    "ca. 430–460 °C"          → 460
-    "zwischen 5 und 8 bar"    → 8
-    "50 bis 70 mm"            → 70
-Die Anlage wird auf den ungünstigsten Fall ausgelegt; der untere Wert ist dafür ohne Belang.
-Der vollständige Bereich bleibt in evidence erhalten, also nachprüfbar.
+DIE NÄCHSTEN DREI REGELN GELTEN AUSSCHLIESSLICH FÜR ZAHLENFELDER.
+In einem TEXTFELD gilt keine davon. Dort gehört die Angabe im WORTLAUT ins Feld —
+ungekürzt, nicht zusammengefasst, nicht auf ein Stichwort eingedampft:
+    "ca. 4 m bis zur Hallendecke"
+        → "ca. 4 m bis zur Hallendecke"        NICHT "4"
+    "Der verfügbare Raum oberhalb des Kessels beträgt ca. 4 m bis zur Hallendecke."
+        → der ganze Satz                       NICHT "ca. 4 m"
+    "Profinet ist die bevorzugte, aber keine zwingende Vorgabe. Eine Anbindung über
+     Profibus DP mit geeignetem Koppler wird ebenfalls akzeptiert."
+        → im Wortlaut                          NICHT "Profinet bevorzugt, Profibus möglich"
+Eine gekürzte Angabe verliert, worauf sie sich bezieht, und ein zusammengefasster Satz
+verliert, was den Kunden gebunden hat — "bevorzugt" ist etwas anderes als "gefordert".
+Gekürzt wird ausschließlich dort, wo das Feld eine feste Werteliste hat; dann ist die
+Kürzung keine Entscheidung, sondern die einzige zulässige Schreibweise.
 
-Eine ALTERNATIVE ist kein Bereich und wird NICHT aufgelöst:
-    "400 V, alternativ 415 V" → value: "400 V, alternativ 415 V"
-Der Unterschied: Ein Bereich nennt eine Spanne, innerhalb derer sich ein Wert bewegt — es
-gibt genau einen Auslegungsfall, den höchsten. Eine Alternative nennt zwei Möglichkeiten,
-zwischen denen jemand entscheiden muss. Diese Entscheidung triffst du nicht.
+(a) Ein WERTEBEREICH wird auf seinen HÖCHSTWERT abgebildet:
+        "430–460 °C"              → 460
+        "ca. 430–460 °C"          → 460
+        "zwischen 5 und 8 bar"    → 8
+        "50 bis 70 mm"            → 70
+    Die Anlage wird auf den ungünstigsten Fall ausgelegt; der untere Wert ist dafür ohne
+    Belang. Der vollständige Bereich bleibt in evidence erhalten, also nachprüfbar.
 
-Eine einzelne Zahl mit Näherungswort ist in einem Zahlenfeld ebenfalls eine Zahl:
-"ca. 480 °C" → 480, "um die 500 Grad" → 500. Das Näherungswort bleibt in evidence erhalten.
-In einem Textfeld gilt das NICHT — dort gehört eine vorhandene Angabe im Wortlaut ins Feld:
-    "ca. 4 m bis zur Hallendecke"  → "ca. 4 m bis zur Hallendecke", nicht "4"
-Eine herausgelöste Zahl verliert dort, worauf sie sich bezieht, und der Wert wird
-unbrauchbar. Kürze eine Textangabe nur, wenn das Feld eine feste Werteliste hat.
+(b) Eine ALTERNATIVE ist kein Bereich und wird NICHT aufgelöst:
+        "400 V, alternativ 415 V" → value: "400 V, alternativ 415 V"
+    Der Unterschied: Ein Bereich nennt eine Spanne, innerhalb derer sich ein Wert bewegt —
+    darin gibt es genau einen Auslegungsfall, den höchsten. Eine Alternative nennt zwei
+    Möglichkeiten, zwischen denen jemand entscheiden muss. Diese Entscheidung triffst du
+    nicht.
+
+(c) Eine einzelne Zahl mit NÄHERUNGSWORT ist eine Zahl:
+        "ca. 480 °C" → 480, "um die 500 Grad" → 500
+    Das Näherungswort bleibt in evidence erhalten.
 
 Das gilt für Sätze, die etwas ANGEBEN. Ein Satz, der das Fehlen einer Angabe feststellt,
 ist keine Angabe und gehört NIE in value — er entscheidet allein den status:
