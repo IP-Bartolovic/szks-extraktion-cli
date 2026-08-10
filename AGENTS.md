@@ -67,8 +67,17 @@ LangSmith schicken, ohne dass es jemand bemerkt. Gesetzt in `umgebungSetzen()`
 Konfigurierbar ist alles, was von der **Umgebung** abhängt: Endpunkt, Schlüssel,
 Ergebnisverzeichnis. Nicht konfigurierbar ist alles, was das **Ergebnis** bestimmt:
 
-- **Modell-ID** (`openai/gpt-5.6-luna`) — Konstante in `src/modell.ts`
+- **Modell-ID** (`gpt-5.6-luna`) — Konstante in `src/modell.ts`
 - **Prompts**, **Chunk-Größe**, **Zielschema** — in `vendor/`
+- **Denkaufwand des Modells** — hier nicht gesetzt, es gilt der Anbieter-Default
+
+Der **Denkaufwand** ist der wackeligste Punkt dieser Liste. Im Pipeline-Repo lässt er sich
+seit dem 2026-08-10 über `SZKS_EXTRAKTION_REASONING_EFFORT` variieren, damit seine Wirkung
+zwischen zwei Eval-Läufen messbar ist. Sobald dort eine Stufe **fest übernommen** wird,
+muss sie hier als Konstante in `src/modell.ts` nachgezogen werden — sonst testet Ben mit
+einem anderen Denkaufwand als dem, der evaluiert wurde, und das ist genau die Art von
+Abweichung, gegen die die Vendor-Sperre gebaut ist. Der Unterschied wäre nirgends sichtbar:
+Beide Seiten lieferten plausible Ergebnisse, nur eben nicht dieselben.
 
 Eine versehentlich verstellte Modell-ID erzeugte Befunde, die auf die Pipeline nicht
 zutreffen. Das ist derselbe Gedanke wie die Vendor-Sperre, eine Ebene höher.
