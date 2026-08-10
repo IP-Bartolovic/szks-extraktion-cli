@@ -1,0 +1,13 @@
+node_modules/
+*.tsbuildinfo
+
+# Ergebnisse und Zwischenstände des Werkzeugs — Kundenmaterial, gehört nicht ins Repo.
+ergebnisse/
+.cache/
+
+# Von `npm install` eingerichtet (uv + Docling, gemessen 1,2 GB; die Modelle
+# liegen zusätzlich in ~/.cache/huggingface).
+.werkzeuge/
+.venv/
+
+.DS_Store

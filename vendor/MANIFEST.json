@@ -1,0 +1,24 @@
+{
+  "quelle": "szks-extraktionspipeline/src",
+  "dateien": {
+    "chunk.ts": "511871b243693faad69f7637153545914e243b26ce1d062822933d50318a3099",
+    "evidence-match.ts": "dc878c0620c103626c24c334e3826c1c6ecdf0a1669e7862773ba79e57451eaf",
+    "field-catalog.generated.ts": "892bddbf8cd8bbd6cd1ff62b8e72bc90f2b890f3c3ac5d44178ddde19239fd78",
+    "graph.ts": "3562672a3f0e4153446b1e4f0c44770af6a063b45e3c6c985abb8c556594a335",
+    "labels.ts": "209667616d9a751baf9eb580d7eaec78138ebe1cdf7f1e7649f6b389a131f158",
+    "ocr-mistral.ts": "2d9d37baccef1992c7b7a9bf632020b9bf137121e7cb21e3e6a39ad7d3155157",
+    "parse-source.ts": "756712dedef6203e60c6385af19da98b11d58b1e286fb9e9e7983eccb4eb74e9",
+    "pdf-markdown.ts": "19bae76aa2ca7cf08daa2523e62507c88f3f932f881f1e3163e76679297325b9",
+    "pdf-native.ts": "37644385e5ac73fcec022a9f2579d9f4e7034d8aaca4421b80abb28bd3941ea8",
+    "prompts.ts": "eb6bba71474030a2a0a90c3e7e5f0c8c8cce045191697b8779cbb431b9dfb0f7",
+    "schema.ts": "764bb976dc0ab10bc25934d81b90f31d81cbf30b79239b1b269aa191bcdcf05a",
+    "strict-schema.ts": "bf9efad8c61f2b57741fcc420b19e0355b2168deefc4e9496b5338a9e1cec292",
+    "export/csv.ts": "22fd8f2a7582e36c0583802a06dbde4a0741689ae7504669bc0d912575099a7e",
+    "nodes/derive.ts": "395e551b473398d0392b0e8d5d1dff1bbf21897516168b1e31729d267f821e85",
+    "nodes/extract.ts": "240b44f0893359adb04b7ce06f9548391b5ffdb0dea3550090a021a885ff17a4",
+    "nodes/ground-evidence.ts": "d19d9edbff2218864bf7f37cb55652f6e4daa57048aca8550e92cf33cc7aafa6",
+    "nodes/merge.ts": "9b5f5b259ae4d362ba9127acc49b5f8d67f0c825cc5affda0b1ed9f3aa0d926a",
+    "nodes/summarize.ts": "e2f1d99b5a53a74effff1ddd2f4c477a6b6308bb08187cead72e91922ed4c055",
+    "model.ts": "bf56906840d1422a4afc0e84edaa759ca0bdc787a26fd59e9ead9c193757e7ba"
+  }
+}

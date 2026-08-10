@@ -1,0 +1,30 @@
+{
+  "name": "szks-extraktion-cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "SZKS-Extraktion: interaktives Werkzeug — PDF-Anfrage einlesen, 71 Zielfelder extrahieren, CSV und Zusammenfassung ausgeben.",
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "typecheck": "npm run check:vendor && tsc -b",
+    "check:vendor": "tsx scripts/check-vendor.ts",
+    "setup:docling": "tsx scripts/setup-docling.ts",
+    "postinstall": "node scripts/postinstall.mjs"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^7.8.6",
+    "@langchain/core": "^1.1.48",
+    "@langchain/langgraph": "^1.4.2",
+    "@langchain/openai": "^1.4.7",
+    "pdfjs-dist": "^6.2.108",
+    "tsx": "^4.19.2",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

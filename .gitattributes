@@ -1,0 +1,4 @@
+# Einheitliche Zeilenenden im Repo. Ohne das committet ein Windows-Klon bei jeder
+# Berührung CRLF zurück, und der Vendor-Prüfsummenabgleich (`npm run check:vendor`)
+# schlägt fehl, ohne dass jemand eine Zeile geändert hat.
+* text=auto eol=lf
