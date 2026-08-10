@@ -202,6 +202,16 @@ const KOPF = [
   'set "PATH=%~dp0node;%PATH%"',
 ];
 
+/**
+ * Eigener Halt statt `pause`.
+ *
+ * `pause` gibt seinen Text über die Konsole des Systems aus, und der ist auf einem
+ * deutschen Windows „Drücken Sie eine beliebige Taste . . ." — mit einem ü, das aus einer
+ * Ressource in der Systemcodepage stammt und nach `chcp 65001` verstümmelt ankommt.
+ * Ausgerechnet die letzte Zeile vor dem Schließen des Fensters sähe dann kaputt aus.
+ */
+const HALT = ["echo   Zum Schliessen eine beliebige Taste druecken.", "pause >nul"];
+
 const EINRICHTEN_CMD = batch([
   ...KOPF,
   "title SZKS Extraktion - Einrichtung",
@@ -218,7 +228,9 @@ const EINRICHTEN_CMD = batch([
   '"%~dp0node\\node.exe" "%~dp0node_modules\\tsx\\dist\\cli.mjs" "%~dp0scripts\\setup-docling.ts"',
   "set FEHLER=%ERRORLEVEL%",
   "echo.",
-  "if not %FEHLER%==0 goto :fehler",
+  // In Anführungszeichen: wäre die Variable leer, stünde hier sonst `if not ==0` — ein
+  // Syntaxfehler, der das Fenster mit einer Meldung über die Meldung schlösse.
+  'if not "%FEHLER%"=="0" goto :fehler',
   "echo   Fertig. Jetzt STARTEN.cmd doppelklicken.",
   "goto :ende",
   ":fehler",
@@ -228,7 +240,7 @@ const EINRICHTEN_CMD = batch([
   "echo   wird dabei nicht noch einmal geholt.",
   ":ende",
   "echo.",
-  "pause",
+  ...HALT,
 ]);
 
 const STARTEN_CMD = batch([
@@ -236,14 +248,14 @@ const STARTEN_CMD = batch([
   "title SZKS Extraktion",
   '"%~dp0node\\node.exe" "%~dp0bin\\szks.mjs"',
   "set FEHLER=%ERRORLEVEL%",
-  "if not %FEHLER%==0 goto :fehler",
+  'if not "%FEHLER%"=="0" goto :fehler',
   "goto :ende",
   ":fehler",
   "echo.",
   "echo   Das Werkzeug wurde mit Code %FEHLER% beendet.",
   "echo   Wenn hier steht, dass Docling fehlt: erst EINRICHTEN.cmd starten.",
   "echo.",
-  "pause",
+  ...HALT,
   ":ende",
 ]);
 

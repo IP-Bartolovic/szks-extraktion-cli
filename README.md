@@ -9,7 +9,10 @@ Läuft auf **macOS und Windows**.
 
 ## Voraussetzungen
 
-Zwei Programme, beide mit Standard-Installer, beide für macOS und Windows:
+Zwei Programme, beide mit Standard-Installer, beide für macOS und Windows. Wer das
+**[Windows-ZIP](#weg-2-windows-zip)** benutzt, braucht keines von beiden — dort liegen sie
+bei; nur die [zwei Zugangsschlüssel](#zwei-zugangsschlüssel) weiter unten werden auch dann
+gebraucht.
 
 | | Wozu | Download |
 |---|---|---|
@@ -47,6 +50,18 @@ Eingabeaufforderung zwar selbst auf UTF-8 um, aber Windows Terminal ist der ruhi
 
 ## Installation
 
+Es gibt zwei Wege. **Der ZIP-Weg braucht kein GitHub-Konto und keine Installationsrechte**
+— er ist für einen Windows-Rechner gedacht, an dem beides fehlt.
+
+| | Klon | ZIP |
+|---|---|---|
+| GitHub-Konto nötig | ja | **nein** |
+| Node vorher installieren | ja | **nein** (liegt bei) |
+| Internet beim Einrichten | ja (rund 1,7 GB) | ja (rund 1,7 GB) |
+| Aktualisieren per `git pull` | ja | nein — neues ZIP |
+
+### Weg 1: Klon
+
 ```bash
 git clone https://github.com/IP-Bartolovic/szks-extraktion-cli.git
 cd szks-extraktion-cli
@@ -64,6 +79,29 @@ Nachholen lässt er sich jederzeit:
 ```bash
 npm run setup:docling
 ```
+
+### Weg 2: Windows-ZIP
+
+Gebaut wird es auf einem Rechner, der das Repo hat:
+
+```bash
+npm run paket:windows      # ergibt paket/szks-windows.zip, rund 110 MB
+```
+
+Im ZIP liegen Node, uv und alle npm-Abhängigkeiten bereits fertig für Windows x64 — es
+muss nichts installiert werden. Auf dem Zielrechner dann:
+
+1. **Rechtsklick auf die ZIP-Datei → Eigenschaften → „Zulassen" → OK.** Ohne das hält
+   Windows jede entpackte Datei für heruntergeladen und fragt bei jedem Start nach.
+2. Den Ordner `szks` aus dem ZIP nach `C:\` ziehen, also nach `C:\szks`.
+3. Doppelklick auf **`EINRICHTEN.cmd`** — lädt den PDF-Leser, einmalig rund 1,7 GB.
+4. Doppelklick auf **`STARTEN.cmd`**.
+
+`KONSOLE.cmd` öffnet ein Fenster, in dem `node` und `npm` verfügbar sind — dort laufen
+Befehle wie `npm run setup:docling`, die das Werkzeug in seinen Meldungen nennt.
+
+Die Voraussetzungen oben gelten für diesen Weg **nicht**: weder Node noch Git werden
+gebraucht. Die beiden API Keys schon — sie werden beim ersten Start abgefragt.
 
 ### Windows: Pfadlänge und Befehlssyntax
 

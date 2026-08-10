@@ -69,15 +69,19 @@ Ergebnisverzeichnis. Nicht konfigurierbar ist alles, was das **Ergebnis** bestim
 
 - **Modell-ID** (`gpt-5.6-luna`) — Konstante in `src/modell.ts`
 - **Prompts**, **Chunk-Größe**, **Zielschema** — in `vendor/`
-- **Denkaufwand des Modells** — hier nicht gesetzt, es gilt der Anbieter-Default
+- **Denkaufwand des Modells** (`high`) — Konstante `REASONING_EFFORT` in `src/modell.ts`
 
-Der **Denkaufwand** ist der wackeligste Punkt dieser Liste. Im Pipeline-Repo lässt er sich
-seit dem 2026-08-10 über `SZKS_EXTRAKTION_REASONING_EFFORT` variieren, damit seine Wirkung
-zwischen zwei Eval-Läufen messbar ist. Sobald dort eine Stufe **fest übernommen** wird,
-muss sie hier als Konstante in `src/modell.ts` nachgezogen werden — sonst testet Ben mit
-einem anderen Denkaufwand als dem, der evaluiert wurde, und das ist genau die Art von
-Abweichung, gegen die die Vendor-Sperre gebaut ist. Der Unterschied wäre nirgends sichtbar:
-Beide Seiten lieferten plausible Ergebnisse, nur eben nicht dieselben.
+Der **Denkaufwand** ist der wackeligste Punkt dieser Liste, weil er an zwei Orten steht.
+Verbindlich festgelegt wurde `high` am 2026-08-10; im Pipeline-Repo trägt ihn die Konstante
+gleichen Namens in `src/model.ts`, und `SZKS_EXTRAKTION_REASONING_EFFORT` überschreibt sie
+dort nur für Messreihen.
+
+> **Ändert sich die Stufe drüben, muss sie hier nachgezogen werden.**
+
+Sonst testet Ben mit einem anderen Denkaufwand als dem evaluierten — dieselbe Art von
+Abweichung, gegen die die Vendor-Sperre gebaut ist, nur ohne Prüfsumme, die sie meldet. Der
+Unterschied wäre nirgends sichtbar: Beide Seiten lieferten plausible Ergebnisse, nur eben
+nicht dieselben.
 
 Eine versehentlich verstellte Modell-ID erzeugte Befunde, die auf die Pipeline nicht
 zutreffen. Das ist derselbe Gedanke wie die Vendor-Sperre, eine Ebene höher.
@@ -146,7 +150,36 @@ npm start              # dasselbe, aus dem Projektordner
 npm run typecheck      # check:vendor + tsc
 npm run check:vendor   # nur der Prüfsummenabgleich
 npm run setup:docling  # Docling nachträglich einrichten
+npm run paket:windows  # Windows-ZIP bauen (Node + uv + node_modules inklusive)
 ```
+
+### `npm run paket:windows` — Auslieferung ohne GitHub-Konto
+
+Für einen Windows-Rechner, an dem sich niemand bei GitHub anmelden kann oder darf.
+`scripts/paket-windows.ts` legt `paket/szks-windows.zip` an (rund 110 MB): Quelltext aus
+`git archive HEAD`, ein portables Node für Windows x64, das uv-Binary und ein
+`node_modules`, das mit `--os=win32 --cpu=x64` für das **Zielsystem** aufgelöst wurde.
+Dazu `EINRICHTEN.cmd`, `STARTEN.cmd`, `KONSOLE.cmd` und eine Anleitung.
+
+Drei Punkte, an denen es sonst still schiefginge:
+
+1. **`--os=win32 --cpu=x64`.** Genau zwei Pakete sind plattformabhängig — `@esbuild/*`
+   (über tsx) und `@napi-rs/canvas-*` (über pdfjs-dist). Ein hier gebautes `node_modules`
+   trüge die Darwin-Fassungen, und der Fehlschlag träte erst auf dem fremden Rechner auf.
+   Der Packer bricht deshalb ab, wenn eine Darwin-Fassung im Baum liegt.
+2. **`--ignore-scripts`.** Ohne das liefe `postinstall.mjs` auf **diesem** Rechner: `npm
+   link` und eine Docling-Einrichtung für macOS, beides in einem Baum für Windows. Dass
+   der Baum trotzdem lädt, ist geprüft — esbuilds ausgelassenes `postinstall` ist bloß
+   eine Startoptimierung, der Auflösungspfad zur `.exe` liegt in `lib/main.js`.
+3. **Docling ist nicht im ZIP.** Es ist Python mit kompilierten Rädern; eine
+   Windows-venv lässt sich auf einem Mac nicht bauen. Die rund 1,7 GB lädt `EINRICHTEN.cmd`
+   von PyPI und HuggingFace — beides ohne Konto, aber mit Leitung. Das vorgelegte
+   `.werkzeuge/uv.exe` erspart wenigstens den Griff nach github.com.
+
+Die Batchdateien sind **rein ASCII** und CRLF; `batch()` prüft das und wirft sonst.
+`cmd.exe` liest seine Datei beim Abarbeiten häppchenweise mit der gerade gültigen Codepage
+— ein `chcp 65001` in Zeile zwei ändert die Regeln also mitten im Lesen. Die Umlaute gehören
+deshalb ins Werkzeug, das sie als UTF-8 schreibt, und nicht in den Starter.
 
 ### Der globale Befehl: `bin/szks.mjs`
 
