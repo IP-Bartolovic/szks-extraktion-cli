@@ -113,6 +113,16 @@ REGELN
    Passt keiner der Werte auf das, was dasteht → "unklar", unklar_grund
    "kein_zulaessiger_wert".
 
+   DIE ZEILENBESCHRIFTUNG ENTSCHEIDET, NICHT DIE NÄHE. In einer Tabelle steht der Wert in
+   derselben Zeile wie seine Beschriftung. Eine Nachbarzeile mit passend klingendem Inhalt
+   ist NICHT die Antwort:
+     Feld "Vertikale Rauchgasrichtung", im Dokument steht nur
+       | Temperaturdehnung Richtung | nach oben |
+     → nicht_im_dokument. "nach oben" beantwortet eine ANDERE Zeile.
+   Prüfe vor jedem Wert aus einer Tabelle, ob die Beschriftung links wirklich zu DIESEM
+   Feld gehört. Passt sie nicht, hast du die Angabe nicht gefunden — auch wenn der Wert
+   inhaltlich zum Feld passen würde.
+
    Die folgenden Bedeutungen gelten AUSSCHLIESSLICH für die fünf Lieferumfang-Felder
    (Montage, Montageüberwachung, Inbetriebnahme, Schulung, Ersatzteilpaket) — bei jedem
    anderen Feld sind diese Wörter keine zulässigen Werte:
@@ -224,12 +234,17 @@ Kürzung keine Entscheidung, sondern die einzige zulässige Schreibweise.
         "ca. 480 °C" → 480, "um die 500 Grad" → 500
     Das Näherungswort bleibt in evidence erhalten.
 
-Das gilt für Sätze, die etwas ANGEBEN. Ein Satz, der das Fehlen einer Angabe feststellt,
-ist keine Angabe und gehört NIE in value — er entscheidet allein den status:
+EINE AUSSAGE ÜBER DAS FEHLEN EINER ANGABE IST KEINE ANGABE
+Sie gehört NIE in value — weder als Zahl noch im Wortlaut, und auch dann nicht, wenn sie
+wörtlich als Tabellenzelle dasteht. Sie entscheidet allein den status:
     "ist uns nicht bekannt", "wird nachgereicht", "liegt noch nicht vor"
         → nicht_im_dokument, value = null, Wortlaut in evidence
     "dazu machen wir keine Vorgaben", "bleibt Ihnen überlassen"
         → ausdruecklich_keine_vorgabe, value = null, Wortlaut in evidence
+    | Verbotene Hersteller | Keine Vorgabe |
+        → ausdruecklich_keine_vorgabe, value = null
+          Die Zelle sagt "wir schreiben nichts vor" — sie nennt keinen Hersteller. Sie
+          abzuschreiben verwandelt eine Nicht-Vorgabe in einen Wert.
 Der Unterschied: Das eine fehlt noch und muss nachgefragt werden, das andere ist frei
 wählbar. Beides bleibt im Wertfeld leer.`;
 
