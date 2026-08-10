@@ -63,7 +63,7 @@ import { copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { StringDecoder } from "node:string_decoder";
-import { cacheVerzeichnis, werkzeugVerzeichnis } from "./pfade.js";
+import { cacheVerzeichnis, REPO_ROOT, werkzeugVerzeichnis } from "./pfade.js";
 
 /**
  * Gepinnt statt „latest": ein stiller Versionswechsel soll auffallen. Zieht ein neues
@@ -609,6 +609,17 @@ async function bereitsEingerichtet(): Promise<boolean> {
 function windowsHinweis(text: string): string | null {
   if (!IST_WINDOWS && !/WinError/.test(text)) return null;
 
+  /**
+   * Das ZIP-Paket legt einen fertigen Reparaturweg daneben, ein Klon nicht. Ein Hinweis,
+   * der auf eine Datei zeigt, die es hier nicht gibt, schickt die Fehlersuche in die Irre
+   * — also wird nachgesehen statt angenommen.
+   */
+  const reparieren = path.join(REPO_ROOT, "C++-LAUFZEIT-REPARIEREN.cmd");
+  const laufzeitWeg = existsSync(reparieren)
+    ? "     C++-LAUFZEIT-REPARIEREN.cmd im Programmordner doppelklicken,\n" +
+      "     danach EINRICHTEN.cmd erneut starten."
+    : "     https://aka.ms/vs/17/release/vc_redist.x64.exe   (Administratorrechte nötig)";
+
   if (/WinError 1114/.test(text) && /c10\.dll|torch/i.test(text)) {
     return [
       "Das ist kein Fehler der Einrichtung: Alle Pakete sind installiert, und die Datei",
@@ -616,20 +627,20 @@ function windowsHinweis(text: string): string | null {
       "beim Starten gescheitert ist — nicht, dass sie fehlt. Netz, Firewall und",
       "Speicherplatz scheiden damit aus.",
       "",
-      "Der Reihe nach zu prüfen:",
-      "  1. Microsoft Visual C++ Redistributable x64 installieren oder reparieren:",
-      "     https://aka.ms/vs/17/release/vc_redist.x64.exe   (Administratorrechte nötig)",
-      "  2. Prüfen, ob die CPU AVX2 beherrscht — aktuelle torch-Fassungen setzen das",
-      "     voraus. Rechner von vor etwa 2013 haben es nicht.",
-      "  3. Eine ältere torch-Fassung versuchen, falls die CPU zu alt ist.",
+      "Der Reihe nach:",
+      "  1. Die Microsoft C++ Laufzeit reparieren — sie ist da, aber womöglich zu alt:",
+      laufzeitWeg,
+      "  2. Hilft das nicht, ist die CPU zu alt: Aktuelle torch-Fassungen setzen AVX2",
+      "     voraus, Rechner von vor etwa 2013 haben es nicht. Die CPU zeigt",
+      '     powershell -NoProfile -Command "(Get-CimInstance Win32_Processor).Name"',
     ].join("\n");
   }
 
   if (/WinError 126/.test(text)) {
     return [
       "Windows-Fehler 126 heißt: eine benötigte Bibliothek wurde nicht gefunden. Auf einem",
-      "frischen Windows fehlt dafür fast immer die Microsoft Visual C++ Laufzeit:",
-      "  https://aka.ms/vs/17/release/vc_redist.x64.exe   (Administratorrechte nötig)",
+      "frischen Windows fehlt dafür fast immer die Microsoft C++ Laufzeit.",
+      laufzeitWeg.trimStart(),
     ].join("\n");
   }
 
