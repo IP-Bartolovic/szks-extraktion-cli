@@ -132,18 +132,40 @@ vendor/            KOPIE — nicht anfassen
 ## Befehle
 
 ```bash
-npm start              # das Werkzeug
+szks                   # das Werkzeug, von überall (nach einmaligem `npm link`)
+npm start              # dasselbe, aus dem Projektordner
 npm run typecheck      # check:vendor + tsc
 npm run check:vendor   # nur der Prüfsummenabgleich
 npm run setup:docling  # Docling nachträglich einrichten
 ```
 
-**Bewusst kein `bin`-Eintrag.** Ein globaler `szks`-Befehl müsste auf eine `.ts`-Datei
-zeigen; npm erzeugt daraus einen Shim, der die Datei direkt an Node übergibt — ohne `tsx`
-scheitert das auf beiden Systemen, und ein Shebang mit `npx tsx` ist unter Windows
-unzuverlässig. `npm start` ist der eine dokumentierte Weg und funktioniert überall gleich.
-`tsx` steht deshalb unter `dependencies`, nicht `devDependencies`: Ben braucht es zur
-Laufzeit.
+### Der globale Befehl: `bin/szks.mjs`
+
+Der `bin`-Eintrag zeigt auf **JavaScript**, nicht auf `src/main.ts` — npm übergibt die Datei
+direkt an Node, und Node kennt kein TypeScript. `bin/szks.mjs` überbrückt das in acht
+Zeilen. Drei Entscheidungen darin sind nicht beliebig:
+
+1. **Loader statt Kindprozess.** `tsx` als Unterprozess zu starten wäre der naheliegende
+   Weg und schöbe eine Prozessebene zwischen Terminal und Werkzeug — dort geht **Strg+C**
+   verloren oder kommt verzögert an, und der Exit-Code muss von Hand durchgereicht werden.
+   `tsx/esm/api` registriert den Loader im laufenden Prozess; `src/main.ts` ist danach ein
+   gewöhnlicher Import, mit einer einzigen Prozess-Identität. Gemessener Startaufschlag:
+   0,22 s.
+2. **Kein vorkompiliertes `dist/`.** Wäre schneller, kostet aber einen Build-Schritt, der
+   nach einem `git pull` vergessen werden kann — und dann misst Ben einen Stand, der nicht
+   mehr dem Quelltext entspricht. Für ein Testinstrument ist das der schlechtere Tausch.
+3. **`fileURLToPath(import.meta.url)`, nicht `new URL(...).pathname`.** Letzteres liefert
+   unter Windows `/C:/Users/...` — führender Schrägstrich, prozentkodierte Leerzeichen,
+   kein gültiger Pfad.
+
+`tsx` steht deshalb unter `dependencies`, nicht `devDependencies`: Es wird zur Laufzeit
+gebraucht.
+
+**`npm link` statt `npm install -g .`** — gemessen: Node löst den Symlink auf den echten
+Ordner auf, `import.meta.url` zeigt also in den Klon. Damit bleiben `.werkzeuge/`,
+`.cache/` und `ergebnisse/` dort, wo Ben sie erwartet, und ein `git pull` wirkt sofort. Ein
+globales `install` kopierte die Dateien stattdessen ins globale `node_modules`, und die
+Ergebnis-CSVs landeten dort — praktisch unauffindbar.
 
 ## Externe Voraussetzungen
 

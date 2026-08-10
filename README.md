@@ -52,6 +52,24 @@ Feldnamen wie „Kessellänge" richtig erscheinen.
 
 ## Starten
 
+Ein Befehl, von überall — wie `git` oder `node`:
+
+```bash
+szks
+```
+
+Damit es den gibt, einmalig im Projektordner:
+
+```bash
+npm link
+```
+
+Das legt `szks` in den globalen Befehlspfad und lässt es auf **diesen** Ordner zeigen.
+Ein `git pull` wirkt damit sofort, ohne dass etwas neu installiert werden muss. Ergebnisse
+und Einrichtung bleiben ebenfalls hier — auch wenn `szks` von ganz woanders gestartet wird.
+
+Falls `npm link` an fehlenden Rechten scheitert, geht es ohne globalen Befehl genauso:
+
 ```bash
 npm start
 ```

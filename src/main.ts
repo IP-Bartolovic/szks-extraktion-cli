@@ -111,7 +111,7 @@ async function main(): Promise<void> {
   if (!process.stdin.isTTY) {
     console.error(
       "Dieses Werkzeug braucht ein Terminal — es stellt Rückfragen.\n" +
-        "  In einem Terminalfenster starten:  npm start",
+        "  In einem Terminalfenster starten:  szks     (oder: npm start im Projektordner)",
     );
     process.exitCode = 1;
     return;

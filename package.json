@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "description": "SZKS-Extraktion: interaktives Werkzeug — PDF-Anfrage einlesen, 71 Zielfelder extrahieren, CSV und Zusammenfassung ausgeben.",
+  "bin": {
+    "szks": "./bin/szks.mjs"
+  },
   "scripts": {
     "start": "tsx src/main.ts",
     "typecheck": "npm run check:vendor && tsc -b",
