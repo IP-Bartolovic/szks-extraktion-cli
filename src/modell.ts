@@ -56,6 +56,36 @@ const OPENROUTER_PRAEFIX = "openai/";
 const REASONING_EFFORT = "high" as const;
 
 /**
+ * Der Denkaufwand geht **am Konstruktor-Feld `reasoning` vorbei**, direkt in den
+ * Anfragekörper. Das ist keine Umständlichkeit, sondern die Reparatur eines stillen
+ * Ausfalls.
+ *
+ * `ChatOpenAI._getReasoningParams` beginnt mit
+ * `if (!isReasoningModel(this.model)) return;`, und `isReasoningModel` ist eine
+ * **Namensheuristik**: `model.startsWith("gpt-5")`. Über OpenRouter heißt dasselbe Modell
+ * aber `openai/gpt-5.6-luna` — das Präfix lässt den Vergleich scheitern, und `reasoning`
+ * fällt ersatzlos aus dem Körper. Gemessen am 2026-08-10 mit `invocationParams()`:
+ *
+ * | Modellname | im Körper |
+ * |---|---|
+ * | `gpt-5.6-luna` | `reasoning_effort: "high"` |
+ * | `openai/gpt-5.6-luna` | **nichts** |
+ *
+ * Kein Fehler, keine Warnung — die Anfrage geht durch und das Modell denkt auf
+ * Anbieter-Default. Genau die Sorte Ausfall, gegen die dieses Projekt an mehreren Stellen
+ * gebaut ist: ein Schalter, der umgelegt aussieht und nichts schaltet.
+ *
+ * `modelKwargs` wird verbatim in den Körper gemischt, ohne Heuristik dazwischen. Die Form
+ * unterscheidet sich je Endpunkt: Chat Completions bei OpenAI kennt `reasoning_effort`
+ * und lehnt ein unbekanntes `reasoning` ab; OpenRouter nimmt seine eigene Objektform.
+ */
+function denkaufwand(beiOpenRouter: boolean): Record<string, unknown> {
+  return beiOpenRouter
+    ? { reasoning: { effort: REASONING_EFFORT } }
+    : { reasoning_effort: REASONING_EFFORT };
+}
+
+/**
  * Erzwingt OpenAI als Upstream statt eines beliebigen OpenRouter-Anbieters.
  *
  * **Nur bei OpenRouter.** Das Feld reist im Anfragekörper mit; ein anderer
@@ -102,10 +132,10 @@ export function modell(): BaseChatModel {
     // Chat Completions spricht jeder OpenAI-kompatible Anbieter, die Responses-API nicht.
     // LangChain würde für IDs, die auf `gpt-`/`o1` passen, sonst selbsttätig umschalten.
     useResponsesApi: false,
-    // `reasoning` statt des veralteten `reasoningEffort`; ChatOpenAI übersetzt es je API
-    // (`reasoning_effort` bei Chat Completions).
-    reasoning: { effort: REASONING_EFFORT },
-    ...(beiOpenRouter ? { modelKwargs: { ...OPENROUTER_ROUTING } } : {}),
+    modelKwargs: {
+      ...denkaufwand(beiOpenRouter),
+      ...(beiOpenRouter ? OPENROUTER_ROUTING : {}),
+    },
   }) as unknown as BaseChatModel;
 
   return zwischengespeichert;

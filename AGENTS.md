@@ -86,6 +86,33 @@ nicht dieselben.
 Eine versehentlich verstellte Modell-ID erzeugte Befunde, die auf die Pipeline nicht
 zutreffen. Das ist derselbe Gedanke wie die Vendor-Sperre, eine Ebene höher.
 
+## `reasoning` fällt bei präfigierten Modellnamen ersatzlos aus
+
+Gemessen am 2026-08-10 über `invocationParams()`, ohne einen einzigen Netzaufruf:
+
+| Modellname | im Anfragekörper |
+|---|---|
+| `gpt-5.6-luna` | `reasoning_effort: "high"` |
+| `openai/gpt-5.6-luna` | **nichts** |
+
+`ChatOpenAI._getReasoningParams` beginnt mit `if (!isReasoningModel(this.model)) return;`,
+und `isReasoningModel` ist eine **Namensheuristik** — `model.startsWith("gpt-5")`. Das
+OpenRouter-Präfix lässt den Vergleich scheitern; das Konstruktor-Feld `reasoning` wird
+still verworfen. Kein Fehler, keine Warnung: Die Anfrage geht durch, das Modell denkt auf
+Anbieter-Default.
+
+`src/modell.ts` schickt den Denkaufwand deshalb über **`modelKwargs`**, das verbatim in den
+Körper gemischt wird — je Endpunkt in dessen Form (`reasoning_effort` bei OpenAI,
+`reasoning: { effort }` bei OpenRouter). Wer das später auf das „saubere" Konstruktor-Feld
+zurückdreht, stellt den Ausfall wieder her, und zwar unsichtbar.
+
+> **Die Pipeline hat denselben Fehler und ist noch nicht repariert.** Dort läuft der Weg
+> über `createModel` aus `@ip-bartolovic/langchain-kit`, das `reasoning_effort` auf genau
+> dieses Konstruktor-Feld abbildet (`HANDLED_PARAM_KEYS` sperrt außerdem den generischen
+> Passthrough). Mit `SZKS_EXTRAKTION_MODEL=openai/gpt-5.6-luna` ist der Denkaufwand dort
+> **nie** gesendet worden — auch nicht im Vergleichslauf, der ihn zu belegen schien.
+> Solange das so ist, laufen CLI und Pipeline auf **verschiedenen** Stufen.
+
 ## Zwei Details, die sonst still brechen
 
 1. **Provider-Routing ist OpenRouter-spezifisch.**
