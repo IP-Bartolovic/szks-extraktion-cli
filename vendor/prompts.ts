@@ -142,7 +142,7 @@ REGELN
    eine Angabe. Sie gehört übertragen, nicht gemeldet:
      "möglichst noch dieses Jahr"          → gefunden, value: "möglichst noch dieses Jahr"
      "Hersteller steht noch nicht fest"    → gefunden, value: "Hersteller steht noch nicht fest"
-     "ca. 430–460 °C"  (Zahlenfeld)        → gefunden, value: "ca. 430–460 °C"
+     "ca. 430–460 °C"  (Zahlenfeld)        → gefunden, value: 460  (siehe EINHEITEN)
    "unklar" heißt: DU kannst die Angabe nicht zuordnen oder nicht in einen zulässigen Wert
    überführen. Es heißt nicht, dass der Kunde vage geschrieben hat. Jedes "unklar" liefert
    value = null — wer flaggt, wo er übertragen könnte, löscht die Angabe.
@@ -171,16 +171,40 @@ REGELN
    is_correction = true. Löse den Widerspruch NICHT selbst auf; trage den Wert ein, den
    dieser Abschnitt nennt.
 
+6. ERGÄNZUNGSBLOCK — DIE VOLLSTÄNDIGERE FASSUNG GILT
+   An mehreren Stellen im Dokument können Blöcke stehen, eingeleitet mit
+   "Ergänzung: Textstellen aus demselben Dokument, die die Tabellenerkennung unvollständig
+   übernommen hat".
+   Ein solcher Block steht jeweils dicht hinter der Tabelle, zu der er gehört; seine Zeilen
+   kommen kurz davor schon vor — dort aber unvollständig, weil beim Auslesen der Tabelle ein
+   Wort verloren ging:
+     Tabelle:   | Anforderungen Klemmkästen | Außenaufstellung, daher Schutzart mindestens gefordert |
+     Ergänzung: Anforderungen Klemmkästen / Kabel Außenaufstellung, daher Schutzart mindestens IP65
+   Findest du dieselbe Angabe zweimal, gilt die Fassung aus dem Ergänzungsblock, und
+   evidence zitierst du aus dem Block. Die Tabellenfassung ist nicht falsch, sondern
+   lückenhaft — und die Lücke sitzt oft genau auf dem gesuchten Wert.
+   Das ist KEINE Korrektur: derselbe Stand desselben Kunden, nur vollständig.
+   is_correction bleibt false.
+
 EINHEITEN
 Übernimm die Einheit so, wie sie dasteht — auch dann, wenn das Feld eine andere erwartet
 ("40 Meter" bleibt 40 mit unit "Meter", nicht 40000 mm). mmWS und mmH₂O bezeichnen
 dasselbe. Rechne NICHTS um; das passiert nachgelagert im Code, wo es exakt ist.
-Bereichsangaben ("430–460 °C") und Alternativen ("400 V, alternativ 415 V") behältst du bei,
-statt eine Zahl herauszupicken. Verlangt das Feld eine Zahl, ist das KEIN Zweifelsfall:
-status "gefunden" und die Angabe als Zeichenkette in value. Eine der beiden Zahlen
-auszuwählen wäre eine Entscheidung, sie zu verwerfen ein Verlust — die Zeichenkette vermeidet
-beides.
-Eine einzelne Zahl mit Näherungswort ist in einem Zahlenfeld dagegen eine Zahl:
+Ein WERTEBEREICH in einem Zahlenfeld wird auf seinen HÖCHSTWERT abgebildet:
+    "430–460 °C"              → 460
+    "ca. 430–460 °C"          → 460
+    "zwischen 5 und 8 bar"    → 8
+    "50 bis 70 mm"            → 70
+Die Anlage wird auf den ungünstigsten Fall ausgelegt; der untere Wert ist dafür ohne Belang.
+Der vollständige Bereich bleibt in evidence erhalten, also nachprüfbar.
+
+Eine ALTERNATIVE ist kein Bereich und wird NICHT aufgelöst:
+    "400 V, alternativ 415 V" → value: "400 V, alternativ 415 V"
+Der Unterschied: Ein Bereich nennt eine Spanne, innerhalb derer sich ein Wert bewegt — es
+gibt genau einen Auslegungsfall, den höchsten. Eine Alternative nennt zwei Möglichkeiten,
+zwischen denen jemand entscheiden muss. Diese Entscheidung triffst du nicht.
+
+Eine einzelne Zahl mit Näherungswort ist in einem Zahlenfeld ebenfalls eine Zahl:
 "ca. 480 °C" → 480, "um die 500 Grad" → 500. Das Näherungswort bleibt in evidence erhalten.
 In einem Textfeld gilt das NICHT — dort gehört eine vorhandene Angabe im Wortlaut ins Feld:
     "ca. 4 m bis zur Hallendecke"  → "ca. 4 m bis zur Hallendecke", nicht "4"

@@ -65,6 +65,13 @@
  * sammeln und neu zusammensetzen" könnte die Textreihenfolge verändern. Die Zeilenliste
  * bleibt deshalb flach, und der OCR-Block tritt genau dort ein, wo die erste Zeile der
  * betroffenen Seite stand.
+ *
+ * ## Die Ergänzungszeilen stehen auf ihrer eigenen Seite
+ *
+ * Dieselbe Überlegung gilt für die Rohzeilen, die `findLostTokens` zurückholt: Sie gehen
+ * **vor** `assemble` in `lines`/`linePages` ein, mit der Seite, von der sie stammen. Bis zum
+ * 2026-08-10 wurden sie als ein Block an den fertigen Markdown-String angehängt — hinter
+ * `assemble`, also ohne Seitenzuordnung. Die Begründung steht bei `platziereErgaenzungen`.
  */
 
 import { execFile } from "node:child_process";
@@ -118,6 +125,11 @@ const DEFAULT_DOCLING_VENV_BIN = path.join(PROJECT_ROOT, ".venv", "bin", "doclin
  * Der PDF-Inhalt allein reicht als Schlüssel nicht: das gecachte Artefakt ist
  * unser abgeleitetes Markdown, nicht die Docling-Rohausgabe.
  *
+ * v7: Die Ergänzungszeilen aus `findLostTokens` stehen nicht mehr als ein Block am
+ *     Dokumentende, sondern **am Ende der Seite, von der sie stammen** (siehe
+ *     `platziereErgaenzungen`). Damit ändern sich `markdown` und `pageLineOffsets`
+ *     für jedes Dokument mit verlorenen Token; ohne Bump lieferte der Cache still
+ *     die Fassung mit dem falschen Fundort.
  * v6: Der native Text-Layer kommt aus pdfjs statt aus poppler `pdftotext`. Die
  *     Klassifikation ist dieselbe (auf allen vier Testdokumenten Seite für Seite
  *     identisch), aber die **Rohtextquelle** für `findLostTokens` ist eine andere:
@@ -133,7 +145,7 @@ const DEFAULT_DOCLING_VENV_BIN = path.join(PROJECT_ROOT, ".venv", "bin", "doclin
  * v2: `page_footer` wird dedupliziert an den Dokumentanfang gezogen statt 26×
  *     zwischen die Absätze gestreut; `footnote` bleibt inline erhalten.
  */
-const PARSER_VERSION = 6;
+const PARSER_VERSION = 7;
 
 /** Seite gilt als Scan, wenn ihre Zeichenausbeute darunter liegt (und ein seitenfüllendes Bild vorliegt). */
 const SCAN_PAGE_CHAR_THRESHOLD = 30;
@@ -216,9 +228,9 @@ export interface PdfParseResult {
   /**
    * Tokens, die im nativen PDF-Text-Layer stehen, aber im Docling-Markdown
    * fehlten (typisch: letztes Wort vor dem Umbruch in mehrzeiligen
-   * Tabellenzellen). Die betroffenen Rohzeilen wurden dem Markdown als
-   * Ergänzungsblock angehängt — dieses Feld dient der Diagnose, damit die
-   * Verlustrate messbar bleibt statt still zu wachsen.
+   * Tabellenzellen). Die betroffenen Rohzeilen stehen im Markdown am Ende der
+   * Seite, von der sie stammen (`platziereErgaenzungen`) — dieses Feld dient der
+   * Diagnose, damit die Verlustrate messbar bleibt statt still zu wachsen.
    */
   lostTokens: string[];
   parseMs: number;
@@ -285,34 +297,55 @@ export async function pdfToMarkdown(pdfPath: string, opts: PdfToMarkdownOptions 
     }
   }
 
-  const assembled = assemble(lines, linePages, pages);
-
   // Abgleich gegen den nativen Text-Layer: fängt Docling-Verluste in mehrzeiligen
   // Tabellenzellen ab (siehe findLostTokens). Scan-Seiten sind davon ausgenommen — sie
   // haben per Definition keinen Text-Layer, gegen den sich prüfen ließe. Ein Rest an
   // Zeichen unterhalb der Erkennungsschwelle (Stempel, Seitenzahl) würde sonst als
   // "verloren" gemeldet, obwohl er nur nicht aus derselben Quelle stammt.
-  let markdown = assembled.markdown;
+  //
+  // Geprüft wird gegen das **zusammengebaute** Dokument: `assemble` normalisiert die
+  // Überschriftenebenen, und genau dieser Markdown-String geht später in die Batches. Ist
+  // etwas verloren gegangen, wird ein zweites Mal zusammengebaut — diesmal mit den
+  // eingefügten Ergänzungszeilen. `assemble` ist rein; der zweite Lauf kostet nichts außer
+  // Rechenzeit und hält die Ableitungen (sections, pageLineOffsets) und den Markdown-String
+  // in Deckung, statt sie nachträglich am fertigen String vorbeizuschieben.
+  const roh = assemble(lines, linePages, pages);
   const rawText = withoutPages(await getRawText(absPdfPath), scanPages);
   const { tokens: lostTokens, lines: lostLines } = rawText
-    ? findLostTokens(markdown, rawText)
+    ? findLostTokens(roh.markdown, rawText)
     : { tokens: [], lines: [] };
 
+  let assembled = roh;
   if (lostLines.length > 0) {
+    const ergaenzt = platziereErgaenzungen(lines, linePages, lostLines, rawText);
+    assembled = assemble(ergaenzt.lines, ergaenzt.linePages, pages);
+
     console.warn(
       `[pdf-markdown] ${path.basename(absPdfPath)}: ${lostTokens.length} Token aus dem Text-Layer fehlten ` +
-        `(${lostTokens.slice(0, 5).join(", ")}${lostTokens.length > 5 ? ", …" : ""}) — als Ergänzungsblock angehängt.`,
+        `(${lostTokens.slice(0, 5).join(", ")}${lostTokens.length > 5 ? ", …" : ""}) — als Ergänzung auf ` +
+        `${formatPageList([...new Set(ergaenzt.eingefuegt.map((e) => e.seite))].sort((a, b) => a - b))} eingefügt.`,
     );
-    markdown +=
-      "\n\n<!-- Ergänzung: Textstellen aus demselben Dokument, die die Tabellenerkennung " +
-      "unvollständig übernommen hat. Kein Nachtrag und keine Korrektur — derselbe Stand, " +
-      "nur vollständiger. -->\n" +
-      lostLines.map((l) => l.replace(/\s{2,}/g, "  ")).join("\n") +
-      "\n";
+
+    // Gegenprobe mit genau der Regel, nach der `ground-evidence.ts` später die Seite
+    // bestimmt. Sie schlägt an, wenn Doclings Lesereihenfolge die Seiten verschränkt
+    // (Zeilen von Seite 10 zwischen denen von Seite 9): dann gibt es im Dokument gar keine
+    // Stelle, die sich als Seite 9 auflöst, und `pageLineOffsets` bildet das schon für die
+    // Originalzeilen nicht ab. Gemeldet statt geglättet — eine Ergänzung an der falschen
+    // Seite ist derselbe Fehler, gegen den dieser Umbau angetreten ist.
+    const daneben = ergaenzt.eingefuegt.filter(
+      (e) => assembled.pageLineOffsets.filter((o) => o <= e.zeile).length !== e.seite,
+    );
+    if (daneben.length > 0) {
+      console.warn(
+        `[pdf-markdown] ${path.basename(absPdfPath)}: ${daneben.length} Ergänzungszeile(n) lösen sich nicht auf ` +
+          `ihre Seite auf (${daneben.map((e) => `Z.${e.zeile}→S.${e.seite}`).join(", ")}) — Doclings Lesereihenfolge ` +
+          `verschränkt hier die Seiten; der Fundort dieser Zeilen ist unzuverlässig.`,
+      );
+    }
   }
 
   const result: PdfParseResult = {
-    markdown,
+    markdown: assembled.markdown,
     sections: assembled.sections,
     pages,
     hasTextLayer,
@@ -916,8 +949,9 @@ function withoutPages(rawText: string, pages: number[]): string {
  * `--table-mode` steht bereits auf `accurate`; wegkonfigurieren lässt es sich
  * nicht. Statt den Verlust hinzunehmen, gleichen wir gegen den nativen
  * Text-Layer ab (`getRawText` aus `pdf-native.ts` — kein OCR, keine
- * Layout-Interpretation) und hängen die betroffenen Rohzeilen als klar
- * markierten Block an.
+ * Layout-Interpretation) und geben die betroffenen Rohzeilen als klar markierten
+ * Block zurück. **Wohin sie kommen, entscheidet `platziereErgaenzungen`** — hier
+ * steht nur die Erkennung.
  *
  * Der Block ist bewusst als Rohtext-Ergänzung ausgewiesen und nicht als
  * Nachtrag/Korrektur formuliert — sonst würde ihn das Extraktionsmodell als
@@ -943,6 +977,174 @@ export function findLostTokens(markdown: string, rawText: string): { tokens: str
     }
   }
   return { tokens: [...lost], lines: [...lostLines] };
+}
+
+/**
+ * Einleitung des Ergänzungsblocks.
+ *
+ * **Der Wortlaut ist eine Schnittstelle.** Abschnitt "6. ERGÄNZUNGSBLOCK" in `src/prompts.ts`
+ * zitiert den ersten Satz, damit das Modell den Block erkennt und bei doppelter Angabe die
+ * vollständigere Fassung nimmt. Wird hier umformuliert, muss der Prompt mit — sonst sucht das
+ * Modell nach einer Formulierung, die im Dokument nicht mehr steht.
+ *
+ * Der Kommentar steht jetzt **je Seite** und nicht mehr einmal am Dokumentende, muss also
+ * mehrfach lesbar bleiben: keine Zählung ("der folgende Block"), kein Rückbezug auf etwas
+ * weiter oben.
+ *
+ * **Die Seitenzahl steht bewusst nicht drin.** Sie wäre der einzige Seitenmarker im ganzen
+ * Markdown — und genau deren Fehlen ist der Grund, warum `page` aus dem Antwortschema
+ * entfernt wurde (siehe `ground-evidence.ts`). Ein einzelner Marker an einer Stelle, an der
+ * ohnehin nur ein Bruchteil der Angaben steht, lädt das Modell zum Raten ein, statt ihm zu
+ * helfen. Die Seite trägt die Position im Dokument, nicht der Text.
+ */
+export const ERGAENZUNG_KOMMENTAR =
+  "<!-- Ergänzung: Textstellen aus demselben Dokument, die die Tabellenerkennung " +
+  "unvollständig übernommen hat. Die Zeilen stehen am Ende der Seite, von der sie stammen; " +
+  "die lückenhafte Fassung steht auf derselben Seite darüber. Kein Nachtrag und keine " +
+  "Korrektur — derselbe Stand, nur vollständiger. -->";
+
+/**
+ * Ordnet jeder Rohzeile die Seite zu, auf der sie steht. `getRawText` trennt Seiten mit
+ * Form-Feed — dieselbe Aufteilung, die auch `withoutPages` benutzt.
+ *
+ * **Kommt eine Zeile auf mehreren Seiten vor, gewinnt die erste.** Drei Gründe, in dieser
+ * Reihenfolge: Eine wörtlich wiederholte Rohzeile ist fast immer eine Kopfzeile oder eine
+ * Tabellenzeile, die auf der Folgeseite fortgesetzt wird — die erste ist dann die, unter der
+ * die Angabe eingeführt wird. Es ist außerdem dieselbe Wahl, die `buildPageLineOffsets`
+ * (erstes Vorkommen einer Seite) und `ground-evidence.ts` ("die erste Fundstelle im engsten
+ * Bereich") bereits treffen; eine zweite, gegenläufige Regel im selben Pfad wäre nur eine
+ * weitere Quelle für Abweichungen. Und die frühere Stelle ist die, auf die ein Leser zuerst
+ * stößt — die lückenhafte Tabellenfassung steht dort ebenfalls zuerst.
+ */
+export function seiteJeRohzeile(rawText: string): Map<string, number> {
+  const zuordnung = new Map<string, number>();
+  const seiten = rawText.split("\f");
+  for (let i = 0; i < seiten.length; i++) {
+    for (const rohzeile of seiten[i]!.split(/\r?\n/)) {
+      const line = rohzeile.trim();
+      if (!line || zuordnung.has(line)) continue;
+      zuordnung.set(line, i + 1);
+    }
+  }
+  return zuordnung;
+}
+
+/**
+ * Setzt die zurückgeholten Rohzeilen **ans Ende ihrer eigenen Seite**, statt sie als einen
+ * Block ans Dokumentende zu hängen.
+ *
+ * ## Warum, zweimal gemessen an Dok 1
+ *
+ * 1. **Der Fundort war falsch.** Die lückenhafte Tabellenzeile stand auf Zeile 200 und damit
+ *    auf Seite 9; der angehängte Block auf Zeile 274 und damit auf Seite 13 (das Dokument hat
+ *    13 Seiten). Seit der Prompt bei doppelter Angabe die Fassung aus dem Ergänzungsblock
+ *    verlangt, wurde damit der **Wert** richtig und die **Seite** falsch —
+ *    `ground-evidence.ts` leitet sie aus `pageLineOffsets` ab, und dort stand die Zeile am
+ *    Dokumentende. Ein Fundort, der plausibel aussieht und ins Leere zeigt, ist genau der
+ *    Fehlermodus, gegen den dieses Projekt gebaut ist.
+ * 2. **Der Block war zu weit weg.** 74 Zeilen zwischen Tabelle und Ergänzung. Das Modell
+ *    liest die Tabellenzeile, findet dort eine plausible Antwort und sieht die vollständige
+ *    Fassung nie an — genau das ist passiert, `IP65` fehlte im Ergebnis.
+ *
+ * ## Warum vor `assemble` und nicht danach
+ *
+ * `markdown`, `sections` und `pageLineOffsets` entstehen alle drei in `assemble` aus
+ * derselben Zeilenliste. Eine Zeile, die erst danach an den String gehängt wird, existiert für
+ * die beiden Ableitungen nicht — sie hat weder eine Seite noch einen Abschnitt. Deshalb geht
+ * die Ergänzung in `lines`/`linePages` ein, bevor irgendetwas abgeleitet wird.
+ *
+ * ## Der Einfügepunkt
+ *
+ * Eingefügt wird nach dem **letzten** Index, dessen `linePages` die Seite trägt. Das ist die
+ * Stelle, die `buildPageLineOffsets` noch dieser Seite zurechnet: dort steht das erste
+ * Vorkommen jeder Seite, und alles bis zum ersten Vorkommen der nächsten gehört ihr.
+ * Das erste Vorkommen der eigenen Seite verschiebt die Einfügung nicht, die aller späteren
+ * Seiten um genau eins — die Offsets bleiben also konsistent und, falls sie es vorher waren,
+ * monoton.
+ *
+ * **Die Zusicherung, an der das hängt:** dass die Zeilen einer Seite zusammenhängen. Doclings
+ * `body.children` ist Lesereihenfolge und garantiert das nicht. Verschränken sich zwei Seiten
+ * (`[9,9,10,10,9]`), gibt es überhaupt keine Position, die sich als Seite 9 auflöst — dann ist
+ * `pageLineOffsets` schon für die Originalzeilen ungenau. Das wird in `pdfToMarkdown` geprüft
+ * und **gemeldet**, nicht durch eine aufgeweichte Regel überdeckt. In allen acht Testdokumenten
+ * ist `pageLineOffsets` streng monoton mit einem eigenen Offset je Seite; der Fall tritt dort
+ * nicht auf.
+ */
+export function platziereErgaenzungen(
+  lines: string[],
+  linePages: number[],
+  lostLines: string[],
+  rawText: string,
+): { lines: string[]; linePages: number[]; eingefuegt: { zeile: number; seite: number }[] } {
+  const seiteVon = seiteJeRohzeile(rawText);
+
+  // Nach Seite gruppieren, innerhalb der Seite in der Reihenfolge des Rohtexts.
+  const jeSeite = new Map<number, string[]>();
+  const ohneEinfuegepunkt: string[] = [];
+
+  // Letzter Index je Seite — der Einfügepunkt.
+  const letzterIndex = new Map<number, number>();
+  for (let i = 0; i < lines.length; i++) letzterIndex.set(linePages[i] ?? 1, i);
+
+  for (const roh of lostLines) {
+    const text = roh.replace(/\s{2,}/g, "  ");
+    const seite = seiteVon.get(roh.trim());
+    // Ohne Seite oder ohne eine einzige Zeile dieser Seite in der Liste gibt es keinen Ort,
+    // der sich als diese Seite auflöst. Dann bleibt es beim alten Verhalten (Dokumentende),
+    // damit die Zeile nicht verloren geht — aber sichtbar, nicht stillschweigend. Nach
+    // Konstruktion kann der erste Fall nicht eintreten (die Zeilen stammen aus `rawText`),
+    // der zweite nur, wenn Docling eine Seite mit nativem Text komplett übergangen hat.
+    if (seite === undefined || !letzterIndex.has(seite)) {
+      ohneEinfuegepunkt.push(text);
+      continue;
+    }
+    const bisher = jeSeite.get(seite);
+    if (bisher) bisher.push(text);
+    else jeSeite.set(seite, [text]);
+  }
+
+  const outLines: string[] = [];
+  const outPages: number[] = [];
+  const eingefuegt: { zeile: number; seite: number }[] = [];
+
+  const block = (texte: string[], seite: number): void => {
+    // Leerzeile nur, wenn nicht ohnehin eine dasteht — der Zeilenstrom aus `buildMarkdown`
+    // endet oft schon mit einer.
+    if (outLines.length > 0 && outLines[outLines.length - 1] !== "") {
+      outLines.push("");
+      outPages.push(seite);
+    }
+    outLines.push(ERGAENZUNG_KOMMENTAR);
+    outPages.push(seite);
+    for (const text of texte) {
+      eingefuegt.push({ zeile: outLines.length, seite });
+      outLines.push(text);
+      outPages.push(seite);
+    }
+    outLines.push("");
+    outPages.push(seite);
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    outLines.push(lines[i]!);
+    outPages.push(linePages[i] ?? 1);
+
+    const seite = linePages[i] ?? 1;
+    if (letzterIndex.get(seite) === i) {
+      const texte = jeSeite.get(seite);
+      if (texte) block(texte, seite);
+    }
+  }
+
+  // Der Rest ohne Einfügepunkt: ans Dokumentende, mit der Seite der letzten Zeile. Ihr die
+  // eigene Seitenzahl zu geben wäre schlimmer als das alte Verhalten — `buildPageLineOffsets`
+  // würde diese Seite dann am Dokumentende beginnen lassen und die Offsets nicht-monoton
+  // machen, was die Binärsuche in `ground-evidence.ts` für ALLE Belege verdirbt.
+  if (ohneEinfuegepunkt.length > 0) {
+    block(ohneEinfuegepunkt, outPages[outPages.length - 1] ?? 1);
+  }
+
+  return { lines: outLines, linePages: outPages, eingefuegt };
 }
 
 // ---------------------------------------------------------------------------
