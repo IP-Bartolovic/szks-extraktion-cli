@@ -235,7 +235,11 @@ const EINRICHTEN_CMD = batch([
   "goto :ende",
   ":fehler",
   "echo   Die Einrichtung ist fehlgeschlagen, Code %FEHLER%.",
-  "echo   Meist fehlt Internet, blockt eine Firewall oder ist die Platte voll.",
+  // Vorher stand hier „meist fehlt Internet, blockt eine Firewall oder ist die Platte
+  // voll". Beim ersten echten Fehlschlag traf keine der drei Ursachen zu — die Pakete
+  // waren vollstaendig installiert, gescheitert war der Start einer DLL. Ein Rateversuch
+  // an dieser Stelle ueberschreibt die Ursache, die zwei Zeilen weiter oben steht.
+  "echo   Die Ursache steht in den Zeilen darueber, meist in der letzten.",
   "echo   Diese Datei kann jederzeit erneut gestartet werden - schon Geladenes",
   "echo   wird dabei nicht noch einmal geholt.",
   ":ende",

@@ -583,6 +583,59 @@ async function bereitsEingerichtet(): Promise<boolean> {
   return doclingVerfuegbar();
 }
 
+/**
+ * Übersetzt bekannte Fehlschläge in Klartext samt Abhilfe.
+ *
+ * Der Anlass ist ein echter Fehlschlag vom 2026-08-10 auf einem Windows-Rechner: Alle 104
+ * Pakete installierten sauber, und erst der Probelauf endete mit
+ * `OSError: [WinError 1114] ... Error loading "torch\lib\c10.dll"`. Darunter standen 40
+ * Zeilen Python-Traceback, und die Batchdatei setzte obendrauf ihren Standardsatz „meist
+ * fehlt Internet, blockt eine Firewall oder ist die Platte voll" — drei Ursachen, die hier
+ * alle nachweislich **nicht** vorlagen. Wer das liest, sucht garantiert an der falschen
+ * Stelle.
+ *
+ * Der Windows-Fehlercode trägt die Unterscheidung, auf die es ankommt:
+ *
+ * | Code | Bedeutung | heißt hier |
+ * |---|---|---|
+ * | 126 | Modul nicht gefunden | eine **fehlende** Abhängigkeit, meist die VC++-Laufzeit |
+ * | 1114 | Initialisierungsroutine fehlgeschlagen | die DLL **wurde geladen** und ist dann gescheitert |
+ *
+ * 1114 schließt also aus, was der Standardsatz behauptet: Der Download war vollständig,
+ * die Datei liegt da, sie wird gefunden. Gescheitert ist erst ihr Start — an einer
+ * unpassenden Laufzeitbibliothek, einer älteren fremden DLL, die auf dem PATH zuerst
+ * gefunden wird, oder einer CPU ohne die Befehlssätze, die dieses torch voraussetzt.
+ */
+function windowsHinweis(text: string): string | null {
+  if (!IST_WINDOWS && !/WinError/.test(text)) return null;
+
+  if (/WinError 1114/.test(text) && /c10\.dll|torch/i.test(text)) {
+    return [
+      "Das ist kein Fehler der Einrichtung: Alle Pakete sind installiert, und die Datei",
+      "torch\\lib\\c10.dll liegt vor und wurde gefunden. Windows-Fehler 1114 heißt, dass sie",
+      "beim Starten gescheitert ist — nicht, dass sie fehlt. Netz, Firewall und",
+      "Speicherplatz scheiden damit aus.",
+      "",
+      "Der Reihe nach zu prüfen:",
+      "  1. Microsoft Visual C++ Redistributable x64 installieren oder reparieren:",
+      "     https://aka.ms/vs/17/release/vc_redist.x64.exe   (Administratorrechte nötig)",
+      "  2. Prüfen, ob die CPU AVX2 beherrscht — aktuelle torch-Fassungen setzen das",
+      "     voraus. Rechner von vor etwa 2013 haben es nicht.",
+      "  3. Eine ältere torch-Fassung versuchen, falls die CPU zu alt ist.",
+    ].join("\n");
+  }
+
+  if (/WinError 126/.test(text)) {
+    return [
+      "Windows-Fehler 126 heißt: eine benötigte Bibliothek wurde nicht gefunden. Auf einem",
+      "frischen Windows fehlt dafür fast immer die Microsoft Visual C++ Laufzeit:",
+      "  https://aka.ms/vs/17/release/vc_redist.x64.exe   (Administratorrechte nötig)",
+    ].join("\n");
+  }
+
+  return null;
+}
+
 /** Richtet uv + venv + docling + Modelle ein. `melde` bekommt Fortschrittszeilen. */
 export async function doclingEinrichten(
   melde: (zeile: string) => void,
@@ -668,11 +721,13 @@ export async function doclingEinrichten(
     // Einrichtungsdialog gerufen, und beide sollen den Fehlschlag berichten statt daran
     // zu zerbrechen.
     const text = fehler instanceof Error ? fehler.message : String(fehler);
+    const hinweis = windowsHinweis(text);
     return {
       ok: false,
       pfad: doclingPfad(),
       meldung:
         `Docling konnte nicht eingerichtet werden.\n${text}\n\n` +
+        (hinweis ? `${hinweis}\n\n` : "") +
         `Nachholen mit:  npm run setup:docling`,
     };
   }
