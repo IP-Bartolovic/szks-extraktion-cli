@@ -409,6 +409,12 @@ export function ordnerOeffnen(ordner: string): void {
  * Werteliste anzuzeigen soll nicht bedeuten, dass er den Weg zum Ordner verloren hat.
  */
 export async function ergebnisMenue(summary: ExtractionSummary, csvPfad: string): Promise<void> {
+  // Die Zusammenfassung gehört hierher und nicht in den Aufrufer: Sie ist der Anfang
+  // desselben Bildes, an dessen Ende das Menü steht. Getrennt aufgerufen war sie schon
+  // einmal gar nicht aufgerufen — eine exportierte Funktion ohne Aufrufer ist gültiges
+  // TypeScript, und der Lauf sah trotzdem erfolgreich aus.
+  zusammenfassungAusgeben(summary);
+
   console.log();
   console.log(`CSV: ${csvPfad}`);
 

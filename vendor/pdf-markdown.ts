@@ -86,6 +86,23 @@ import {
 
 const execFileAsync = promisify(execFile);
 
+/**
+ * Reine **Hinweise** — abschaltbar über `SZKS_QUIET=1`.
+ *
+ * Die Trennlinie verläuft zwischen „das ist passiert" und „hier stimmt etwas nicht": Die
+ * Kostenzeile eines OCR-Laufs ist im Entwicklungs- und Eval-Betrieb der Kostenbeleg und
+ * gehört dorthin. In einem ausgelieferten Werkzeug ist sie Rauschen mit Entwicklergeruch —
+ * dort meldet die Oberfläche Seitenzahl und Scan-Seiten ohnehin in eigenen Worten.
+ *
+ * **Warnungen über Auffälligkeiten laufen bewusst nicht hierüber**: fehlender
+ * Mistral-Schlüssel, mehr abgerechnete als angeforderte Seiten, niedrige OCR-Zuversicht,
+ * verlorene Token. Sie melden, dass das Ergebnis schlechter sein könnte, als es aussieht,
+ * und genau das darf sich nicht abschalten lassen.
+ */
+function hinweis(zeile: string): void {
+  if (process.env.SZKS_QUIET !== "1") console.warn(zeile);
+}
+
 // src/pdf-markdown.ts -> Projekt-Root ist ein Verzeichnis höher.
 const PROJECT_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
@@ -350,7 +367,7 @@ async function readScanPages(
 
   try {
     const ocr = await ocrPages(pdfBuffer, scanPages);
-    console.warn(
+    hinweis(
       `[pdf-markdown] ${name}: ${scanPages.length} Seite(n) per OCR gelesen (${formatPageList(scanPages)}), ` +
         `~$${(ocr.pagesProcessed * OCR_PRICE_PER_PAGE).toFixed(3)}.`,
     );

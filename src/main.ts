@@ -117,7 +117,7 @@ async function main(): Promise<void> {
     if (!istEingerichtet()) {
       console.log();
       console.log(
-        "Es ist noch kein API-Schlüssel hinterlegt — eine Auswertung schlägt so fehl.\n" +
+        "Es ist noch kein API Key hinterlegt — eine Auswertung schlägt so fehl.\n" +
           "  Nachholen über den Menüpunkt Einstellungen.",
       );
     }

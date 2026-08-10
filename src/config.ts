@@ -47,8 +47,13 @@ export interface Konfiguration {
 }
 
 export const VORGABE: Konfiguration = {
-  baseUrl: "https://openrouter.ai/api/v1",
-  apiKeyName: "OPENROUTER_API_KEY",
+  // Die OpenAI-API direkt. Die Pipeline routet über OpenRouter, weil dort mehrere Modelle
+  // nebeneinander erprobt werden; für ein Werkzeug mit **einem** festen Modell ist der
+  // Umweg nur eine zusätzliche Stelle, an der etwas ausfallen kann. OpenRouter bleibt
+  // einstellbar — die Basis-URL entscheidet, und `modell.ts` passt Modellnamen und
+  // Provider-Routing daran an.
+  baseUrl: "https://api.openai.com/v1",
+  apiKeyName: "OPENAI_API_KEY",
   apiKey: "",
   mistralApiKey: "",
   ergebnisVerzeichnis: "",
@@ -134,6 +139,9 @@ export function aufgeloest(cfg: Konfiguration): AufgelosteKonfiguration {
 export function umgebungSetzen(cfg: Konfiguration, doclingBin: string | null): void {
   const a = aufgeloest(cfg);
   process.env.LANGSMITH_TRACING = "false";
+  // Unterdrückt die reinen Hinweiszeilen des Parsers (etwa den OCR-Kostenbeleg). Warnungen
+  // über Auffälligkeiten laufen bewusst nicht darüber und bleiben sichtbar.
+  process.env.SZKS_QUIET = "1";
   process.env.DOCLING_CACHE_DIR = cacheVerzeichnis();
   if (doclingBin) process.env.DOCLING_BIN = doclingBin;
   if (a.mistralApiKey) process.env.MISTRAL_API_KEY = a.mistralApiKey;

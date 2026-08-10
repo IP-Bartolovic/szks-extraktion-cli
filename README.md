@@ -45,7 +45,7 @@ Umgebungsvariablen schreiben sich anders:
 | | Eingabeaufforderung | PowerShell |
 |---|---|---|
 | Docling-Einrichtung überspringen | `set SZKS_SKIP_DOCLING=1 && npm install` | `$env:SZKS_SKIP_DOCLING=1; npm install` |
-| Schlüssel als Variable setzen | `set OPENROUTER_API_KEY=sk-...` | `$env:OPENROUTER_API_KEY="sk-..."` |
+| API Key als Variable setzen | `set OPENAI_API_KEY=sk-...` | `$env:OPENAI_API_KEY="sk-..."` |
 
 Die Konsole wird beim Start selbsttätig auf UTF-8 gestellt (`chcp 65001`), damit Umlaute in
 Feldnamen wie „Kessellänge" richtig erscheinen.
@@ -77,7 +77,6 @@ SZKS Extraktion
 
   › Anfrage auswerten
     Einstellungen
-    Docling einrichten
     Beenden
 ```
 
@@ -87,11 +86,11 @@ SZKS Extraktion
 
 | Einstellung | Wozu |
 |---|---|
-| **Basis-URL** | Der Endpunkt des KI-Anbieters. Vorgabe: OpenRouter. Jeder OpenAI-kompatible Anbieter geht. |
-| **Schlüsselname** | Name der Umgebungsvariablen, unter der der Schlüssel liegt (Vorgabe `OPENROUTER_API_KEY`). |
-| **Schlüssel** | Der API-Schlüssel. Leer lassen, wenn er als Umgebungsvariable gesetzt ist. |
-| **Mistral-Schlüssel** | Für **gescannte** Seiten. Optional, aber empfohlen — siehe unten. |
-| **Ergebnisverzeichnis** | Wohin die CSV geschrieben wird. Vorgabe: `ergebnisse/` im Projektordner. |
+| **Base URL** | Der Endpunkt des KI-Anbieters. Vorgabe: die OpenAI-API. Jeder OpenAI-kompatible Anbieter geht, etwa OpenRouter. |
+| **API Key Name** | Name der Umgebungsvariablen, unter der der Key liegt (Vorgabe `OPENAI_API_KEY`). |
+| **API Key** | Der Schlüssel. Leer lassen, wenn er als Umgebungsvariable gesetzt ist. |
+| **Mistral API Key** | Für **gescannte** Seiten. Optional, aber empfohlen — siehe unten. |
+| **Output Directory** | Wohin die CSV geschrieben wird. Vorgabe: `ergebnisse/` im Projektordner. |
 
 Änderbar über den Menüpunkt „Einstellungen" oder durch Eingabe von `/config` an jeder
 Stelle. Dort steht jeder Wert mit seinem aktuellen Stand; geändert wird nur, was man
@@ -100,26 +99,26 @@ auswählt — per Zifferntaste, mit den Pfeiltasten, und **Esc** führt zurück.
 ```
 Einstellungen
 
-  › 1  Basis-URL            https://openrouter.ai/api/v1
-    2  Schlüsselname        OPENROUTER_API_KEY
-    3  API-Schlüssel        hinterlegt
-    4  Mistral-Schlüssel    nicht hinterlegt
-    5  Ergebnisverzeichnis  /Users/ben/szks/ergebnisse
-    6  Verbindung prüfen    kostenlos
-    7  Docling              eingerichtet
+  › 1  Base URL           https://api.openai.com/v1
+    2  API Key Name       OPENAI_API_KEY
+    3  API Key            hinterlegt
+    4  Mistral API Key    nicht hinterlegt
+    5  Output Directory   /Users/ben/szks/ergebnisse
+    6  Verbindung prüfen  kostenlos
+    7  Docling            eingerichtet
 ```
 
 > **Die Schlüssel werden im Klartext gespeichert**, in der Konfigurationsdatei im
 > Benutzerprofil (der Dialog nennt den genauen Pfad). Auf macOS ist die Datei auf den
 > eigenen Benutzer beschränkt. Kein Schlüssel gehört ins Repo.
 
-### Warum der Mistral-Schlüssel wichtig ist
+### Warum der Mistral API Key wichtig ist
 
 Seiten **ohne** Text-Layer — eingescannte Anhänge, unterschriebene Formblätter,
 weitergeleitete Fax-PDFs — müssen per Texterkennung gelesen werden. Dafür gibt es zwei
 Wege, und der Unterschied ist gemessen:
 
-| | ohne Mistral-Schlüssel | mit Mistral-Schlüssel |
+| | ohne Mistral API Key | mit Mistral API Key |
 |---|---|---|
 | Textverlust auf gescannten Seiten | 12,8 – 13,8 % | 0,0 – 0,9 % |
 | gesuchte Werte gefunden (Testkorpus) | 52 von 53 | 53 von 53 |
@@ -139,9 +138,8 @@ nichts.
 1. **„Anfrage auswerten"** wählen.
 2. PDF aussuchen — über den gewohnten Datei-Dialog, aus der Liste der zuletzt genutzten,
    oder durch Hineinziehen der Datei ins Terminal.
-3. Das Werkzeug meldet Seitenzahl, erkannte Scan-Seiten und die zu erwartenden OCR-Kosten,
-   dann läuft die Extraktion. Ein Dokument dauert je nach Umfang **ein bis mehrere
-   Minuten**.
+3. Das Werkzeug meldet Seitenzahl und erkannte Scan-Seiten, dann läuft die Extraktion mit
+   Fortschrittsanzeige. Ein Dokument dauert je nach Umfang **ein bis mehrere Minuten**.
 4. Die Zusammenfassung zeigt, was zu tun ist: fehlende Prio-Werte, unklare Felder und die
    Punkte, zu denen der Kunde ausdrücklich keine Vorgabe macht. Darunter eine **Übersicht
    nach Bereich** — sie beantwortet die Frage, die die Feldlisten offenlassen: Sind die
@@ -200,7 +198,7 @@ steht das im Status — es wird nichts geraten und nichts ausgelegt.
 | Meldung | Ursache |
 |---|---|
 | „Docling ist nicht eingerichtet" | `npm run setup:docling` ausführen |
-| „Kein API-Schlüssel hinterlegt" | Menüpunkt „Einstellungen", oder die Umgebungsvariable setzen |
+| „Kein API Key hinterlegt" | Menüpunkt „Einstellungen", oder die Umgebungsvariable setzen |
 | Datei-Dialog öffnet nicht | Kommt bei Fernzugriff oder gesperrter Richtlinie vor — das Werkzeug bietet dann die Pfadeingabe an |
 | „Das PDF ist zu groß" | Die Texterkennung nimmt höchstens 50 MB bzw. 1000 Seiten |
 

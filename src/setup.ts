@@ -62,9 +62,9 @@ function normalisiereBasisUrl(wert: string): string | null {
 
 async function frageBasisUrl(vorgabe: string): Promise<string> {
   const antwort = await input({
-    message: "Basis-URL des Anbieters (OpenAI-kompatibel):",
+    message: "Base URL des Anbieters (OpenAI-kompatibel):",
     default: vorgabe,
-    validate: (wert) => normalisiereBasisUrl(wert) !== null || "Muss eine http(s)-URL sein, z. B. https://openrouter.ai/api/v1",
+    validate: (wert) => normalisiereBasisUrl(wert) !== null || "Muss eine http(s)-URL sein, z. B. https://api.openai.com/v1",
   });
   // Validate garantiert bereits, dass dies nicht null ist.
   return normalisiereBasisUrl(antwort) as string;
@@ -72,7 +72,7 @@ async function frageBasisUrl(vorgabe: string): Promise<string> {
 
 async function frageSchluesselName(vorgabe: string): Promise<string> {
   return input({
-    message: "Name der Umgebungsvariable für den Schlüssel:",
+    message: "Name der Umgebungsvariablen mit dem API Key:",
     default: vorgabe,
     validate: (wert) => wert.trim() !== "" || "Darf nicht leer sein.",
   });
@@ -110,7 +110,7 @@ function bereinigePfad(roh: string): string {
 
 async function frageErgebnisVerzeichnis(vorgabe: string): Promise<string> {
   const antwort = await input({
-    message: "Ergebnisverzeichnis (CSV-Ausgabe):",
+    message: "Output Directory (Ablage der CSV):",
     default: vorgabe,
     validate: (wert) => {
       const absolut = path.resolve(bereinigePfad(wert));
@@ -159,8 +159,8 @@ async function anbieterKorrigieren(cfg: Konfiguration): Promise<void> {
   const wahl = await select({
     message: "Was korrigieren?",
     choices: [
-      { name: "Basis-URL", value: "url" as const },
-      { name: "API-Schlüssel", value: "schluessel" as const },
+      { name: "Base URL", value: "url" as const },
+      { name: "API Key", value: "schluessel" as const },
       { name: "Beides", value: "beide" as const },
       { name: "Überspringen", value: "ueberspringen" as const },
     ],
@@ -170,7 +170,7 @@ async function anbieterKorrigieren(cfg: Konfiguration): Promise<void> {
   // Nach einem Fehlschlag erzwungen neu eingeben statt "Enter behält" anzubieten — der
   // bestehende Schlüssel war ja gerade nachweislich falsch (oder die URL war es, und der
   // Schlüssel ist unbeteiligt; in dem Fall tippt Ben ihn unverändert erneut ein).
-  if (wahl === "schluessel" || wahl === "beide") cfg.apiKey = await frageSchluessel("API-Schlüssel", "", true);
+  if (wahl === "schluessel" || wahl === "beide") cfg.apiKey = await frageSchluessel("API Key", "", true);
   speichern(cfg);
   modellZuruecksetzen();
 }
@@ -178,7 +178,7 @@ async function anbieterKorrigieren(cfg: Konfiguration): Promise<void> {
 async function mistralKorrigieren(cfg: Konfiguration): Promise<void> {
   const korrigieren = await confirm({ message: "Jetzt Mistral-Schlüssel korrigieren?", default: true });
   if (!korrigieren) return;
-  cfg.mistralApiKey = await frageSchluessel("Mistral-API-Schlüssel", "", false);
+  cfg.mistralApiKey = await frageSchluessel("Mistral API Key", "", false);
   speichern(cfg);
   modellZuruecksetzen();
 }
@@ -226,12 +226,12 @@ async function dialogAblauf(ueberschrift: string): Promise<void> {
     console.log(`Ein Schlüssel steht bereits in der Umgebungsvariablen ${cfg.apiKeyName}.`);
   }
   cfg.apiKey = await frageSchluessel(
-    "API-Schlüssel",
+    "API Key",
     cfg.apiKey,
     ausUmgebung === "",
     ` (Enter übernimmt den Schlüssel aus ${cfg.apiKeyName})`,
   );
-  cfg.mistralApiKey = await frageSchluessel("Mistral-API-Schlüssel (OCR für gescannte Seiten)", cfg.mistralApiKey, false);
+  cfg.mistralApiKey = await frageSchluessel("Mistral API Key (OCR für gescannte Seiten)", cfg.mistralApiKey, false);
   cfg.ergebnisVerzeichnis = await frageErgebnisVerzeichnis(cfg.ergebnisVerzeichnis || ergebnisVerzeichnisDefault());
 
   speichern(cfg);
@@ -285,11 +285,11 @@ async function einstellungenMenue(cfg: Konfiguration): Promise<Einstellung | nul
   return menue<Einstellung>({
     message: "Einstellungen",
     punkte: [
-      { wert: "url", name: "Basis-URL", hinweis: a.baseUrl },
-      { wert: "name", name: "Schlüsselname", hinweis: a.apiKeyName },
-      { wert: "schluessel", name: "API-Schlüssel", hinweis: schluesselStand(cfg.apiKey, a.apiKeyName) },
-      { wert: "mistral", name: "Mistral-Schlüssel", hinweis: schluesselStand(cfg.mistralApiKey, "MISTRAL_API_KEY") },
-      { wert: "ergebnisse", name: "Ergebnisverzeichnis", hinweis: a.ergebnisVerzeichnis },
+      { wert: "url", name: "Base URL", hinweis: a.baseUrl },
+      { wert: "name", name: "API Key Name", hinweis: a.apiKeyName },
+      { wert: "schluessel", name: "API Key", hinweis: schluesselStand(cfg.apiKey, a.apiKeyName) },
+      { wert: "mistral", name: "Mistral API Key", hinweis: schluesselStand(cfg.mistralApiKey, "MISTRAL_API_KEY") },
+      { wert: "ergebnisse", name: "Output Directory", hinweis: a.ergebnisVerzeichnis },
       { wert: "pruefen", name: "Verbindung prüfen", hinweis: "kostenlos" },
       { wert: "docling", name: "Docling", hinweis: doclingDa ? "eingerichtet" : "nicht eingerichtet" },
     ],
@@ -325,7 +325,7 @@ export async function einstellungenDialog(): Promise<void> {
             console.log(`Ein Schlüssel steht bereits in der Umgebungsvariablen ${cfg.apiKeyName}.`);
           }
           cfg.apiKey = await frageSchluessel(
-            "API-Schlüssel",
+            "API Key",
             cfg.apiKey,
             ausUmgebung === "",
             ` (Enter übernimmt den Schlüssel aus ${cfg.apiKeyName})`,
@@ -334,7 +334,7 @@ export async function einstellungenDialog(): Promise<void> {
         }
         case "mistral":
           cfg.mistralApiKey = await frageSchluessel(
-            "Mistral-API-Schlüssel (OCR für gescannte Seiten)",
+            "Mistral API Key (OCR für gescannte Seiten)",
             cfg.mistralApiKey,
             false,
           );

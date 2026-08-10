@@ -25,8 +25,19 @@ import { ChatOpenAI } from "@langchain/openai";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { aufgeloest, laden } from "./config.js";
 
-/** Wie im Pipeline-Repo (`.env: SZKS_EXTRAKTION_MODEL`), hier fest im Code. */
-export const MODELL_ID = "openai/gpt-5.6-luna";
+/**
+ * Dasselbe Modell wie im Pipeline-Repo (`.env: SZKS_EXTRAKTION_MODEL`), hier fest im Code.
+ *
+ * **Der Name hängt am Endpunkt.** Die OpenAI-API kennt es als `gpt-5.6-luna`, OpenRouter
+ * verlangt den Anbieter als Präfix (`openai/gpt-5.6-luna`) — es ist dasselbe Modell, nur
+ * anders adressiert. Deshalb steht hier der nackte Name und das Präfix kommt erst beim
+ * Bauen dazu; zwei Konstanten nebeneinander wären zwei Stellen, die beim nächsten
+ * Modellwechsel auseinanderlaufen.
+ */
+export const MODELL_ID = "gpt-5.6-luna";
+
+/** OpenRouter adressiert Modelle als `<anbieter>/<modell>`. */
+const OPENROUTER_PRAEFIX = "openai/";
 
 /**
  * Erzwingt OpenAI als Upstream statt eines beliebigen OpenRouter-Anbieters.
@@ -59,7 +70,7 @@ export function modell(): BaseChatModel {
   const cfg = aufgeloest(laden());
   if (!cfg.apiKey) {
     throw new Error(
-      `Kein API-Schlüssel hinterlegt.\n` +
+      `Kein API Key hinterlegt.\n` +
         `  Entweder im Menü unter "Einstellungen" eintragen,\n` +
         `  oder die Umgebungsvariable ${cfg.apiKeyName} setzen.`,
     );
@@ -68,7 +79,7 @@ export function modell(): BaseChatModel {
   const beiOpenRouter = cfg.baseUrl.includes("openrouter.ai");
 
   zwischengespeichert = new ChatOpenAI({
-    model: MODELL_ID,
+    model: beiOpenRouter ? OPENROUTER_PRAEFIX + MODELL_ID : MODELL_ID,
     temperature: 0,
     apiKey: cfg.apiKey,
     configuration: { baseURL: cfg.baseUrl },

@@ -135,28 +135,24 @@ export class Fortschritt {
 // Texte
 // ---------------------------------------------------------------------------
 
-/** Deutscher Betrag mit Komma. Unter einem Cent mit drei Stellen, sonst stünde dort „0,00". */
-function betragText(seiten: number, proSeite: number): string {
-  const betrag = seiten * proSeite;
-  return betrag.toFixed(betrag < 0.01 ? 3 : 2).replace(".", ",");
-}
-
 /**
  * Was nach dem Parsen über das Dokument feststeht.
  *
  * Seitenzahl und Scan-Seiten sind vorher **nicht** bekannt — sie stehen erst im Ergebnis
- * von Docling. Die OCR-Kosten werden deshalb nicht vorab angekündigt, sondern beziffert,
- * sobald sie feststehen; Grundlage ist `ocrPages` (die tatsächlich per Mistral gelesenen
- * Seiten) und nicht `scanPages`, denn ohne Mistral-Schlüssel entsteht kein Betrag.
+ * von Docling.
+ *
+ * **Ohne Betrag.** Die OCR-Kosten standen hier einmal (rund 8 Cent für ein 21-seitiges
+ * Dokument) und sind für den Ablauf ohne Belang: Ben entscheidet nichts danach, und wer
+ * abrechnet, sieht sie an anderer Stelle. Eine Zahl, die bei jedem Lauf mitläuft und nie
+ * zu einer Handlung führt, ist Rauschen — und ein Preisschild an jedem Dokument setzt
+ * beim Erproben genau den falschen Anreiz. Was **bleibt**, ist der Hinweis auf einen Lauf
+ * ohne Mistral-Schlüssel: Der ändert die Qualität des Ergebnisses.
  */
-function leseText(parsed: PdfParseResult, preisProSeite: number): string {
+function leseText(parsed: PdfParseResult): string {
   const teile = [`${parsed.pages} Seiten`];
   if (parsed.scanPages.length > 0) {
-    const zusatz =
-      parsed.ocrPages.length > 0
-        ? `(~${betragText(parsed.ocrPages.length, preisProSeite)} $ OCR)`
-        : "(ohne Mistral-Schlüssel gelesen)";
-    teile.push(`${parsed.scanPages.length} davon gescannt ${zusatz}`);
+    const zusatz = parsed.ocrPages.length > 0 ? "" : " (ohne Mistral-Schlüssel gelesen)";
+    teile.push(`${parsed.scanPages.length} davon gescannt${zusatz}`);
   }
   return teile.join(", ");
 }
@@ -202,9 +198,8 @@ export async function auswerten(pdfPfad: string): Promise<Laufergebnis | null> {
     return null;
   }
 
-  const [{ build }, { OCR_PRICE_PER_PAGE }, { istNotbehelf }, { toCsv }] = await Promise.all([
+  const [{ build }, { istNotbehelf }, { toCsv }] = await Promise.all([
     import("../vendor/graph.js"),
-    import("../vendor/ocr-mistral.js"),
     import("../vendor/pdf-markdown.js"),
     import("../vendor/export/csv.js"),
   ]);
@@ -234,7 +229,7 @@ export async function auswerten(pdfPfad: string): Promise<Laufergebnis | null> {
           const parsed = aktualisierung.parsed as PdfParseResult | null | undefined;
           if (!parsed) continue;
           notbehelf = istNotbehelf(parsed);
-          anzeige.abschliessen(leseText(parsed, OCR_PRICE_PER_PAGE));
+          anzeige.abschliessen(leseText(parsed));
           anzeige.starten("Aufteilen");
           continue;
         }
