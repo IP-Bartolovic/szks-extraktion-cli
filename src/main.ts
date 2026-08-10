@@ -21,7 +21,6 @@ import { spawnSync } from "node:child_process";
 import { select } from "@inquirer/prompts";
 import { ergebnisMenue, MENUE_THEMA } from "./ansicht.js";
 import { pdfWaehlen } from "./dateiauswahl.js";
-import { doclingEinrichten } from "./docling.js";
 import { laden } from "./config.js";
 import { auswerten } from "./run.js";
 import { einrichtungsDialog, einstellungenDialog, istEingerichtet } from "./setup.js";
@@ -41,18 +40,6 @@ async function anfrageAuswerten(): Promise<void> {
   await ergebnisMenue(ergebnis.summary, ergebnis.csvPfad);
 }
 
-/**
- * Docling einrichten. Die Fortschrittszeilen kommen als Rückruf, weil die Einrichtung
- * mehrere Minuten dauert (Python-Laufzeit und Modelle werden geladen) — die Meldungen
- * sollen einzeln erscheinen und nicht gesammelt am Ende.
- */
-async function doclingEinrichtenAnzeigen(): Promise<void> {
-  console.log();
-  const ergebnis = await doclingEinrichten((zeile) => console.log(zeile));
-  console.log();
-  console.log(ergebnis.meldung);
-}
-
 async function menueSchleife(): Promise<void> {
   for (;;) {
     console.log();
@@ -62,14 +49,12 @@ async function menueSchleife(): Promise<void> {
       choices: [
         { value: "auswerten", name: "Anfrage auswerten" },
         { value: "einstellungen", name: "Einstellungen" },
-        { value: "docling", name: "Docling einrichten" },
         { value: "beenden", name: "Beenden" },
       ],
     });
 
     if (wahl === "auswerten") await anfrageAuswerten();
     else if (wahl === "einstellungen") await einstellungenDialog();
-    else if (wahl === "docling") await doclingEinrichtenAnzeigen();
     else return;
   }
 }

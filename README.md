@@ -94,7 +94,20 @@ SZKS Extraktion
 | **Ergebnisverzeichnis** | Wohin die CSV geschrieben wird. Vorgabe: `ergebnisse/` im Projektordner. |
 
 Änderbar über den Menüpunkt „Einstellungen" oder durch Eingabe von `/config` an jeder
-Stelle.
+Stelle. Dort steht jeder Wert mit seinem aktuellen Stand; geändert wird nur, was man
+auswählt — per Zifferntaste, mit den Pfeiltasten, und **Esc** führt zurück.
+
+```
+Einstellungen
+
+  › 1  Basis-URL            https://openrouter.ai/api/v1
+    2  Schlüsselname        OPENROUTER_API_KEY
+    3  API-Schlüssel        hinterlegt
+    4  Mistral-Schlüssel    nicht hinterlegt
+    5  Ergebnisverzeichnis  /Users/ben/szks/ergebnisse
+    6  Verbindung prüfen    kostenlos
+    7  Docling              eingerichtet
+```
 
 > **Die Schlüssel werden im Klartext gespeichert**, in der Konfigurationsdatei im
 > Benutzerprofil (der Dialog nennt den genauen Pfad). Auf macOS ist die Datei auf den
@@ -130,7 +143,23 @@ nichts.
    dann läuft die Extraktion. Ein Dokument dauert je nach Umfang **ein bis mehrere
    Minuten**.
 4. Die Zusammenfassung zeigt, was zu tun ist: fehlende Prio-Werte, unklare Felder und die
-   Punkte, zu denen der Kunde ausdrücklich keine Vorgabe macht.
+   Punkte, zu denen der Kunde ausdrücklich keine Vorgabe macht. Darunter eine **Übersicht
+   nach Bereich** — sie beantwortet die Frage, die die Feldlisten offenlassen: Sind die
+   Lücken über das Dokument verstreut, oder fehlt ein ganzer Block?
+
+   ```
+   Übersicht nach Bereich
+                                           gefunden  unklar    leer
+     Projekt- und Grunddaten                      8       -       -
+     Anlagen- und Kesseldaten                    24       2       1  *
+     Steuerung / Elektrotechnik / Pneumatik       7       1       -
+     ...
+     Gesamt                                      64       3       4
+
+     * Bereich enthält offene Prio-Felder
+   ```
+
+   Die vollständige Werteliste steht dahinter als eigener Menüpunkt.
 5. Die CSV liegt im Ergebnisverzeichnis, mit Datum und Uhrzeit im Namen — **es wird nie
    etwas überschrieben**, zwei Läufe desselben Dokuments bleiben vergleichbar.
 

@@ -11,6 +11,7 @@
 import { accessSync, constants, mkdirSync } from "node:fs";
 import path from "node:path";
 import { confirm, input, password, select } from "@inquirer/prompts";
+import { menue } from "./auswahl.js";
 import { aufgeloest, laden, speichern, VORGABE, type Konfiguration } from "./config.js";
 import { doclingEinrichten, doclingVerfuegbar } from "./docling.js";
 import { modellZuruecksetzen } from "./modell.js";
@@ -256,11 +257,107 @@ export async function einrichtungsDialog(): Promise<void> {
   }
 }
 
-/** Menüpunkt "Einstellungen" und Slash-Befehl /config. */
+// ---------------------------------------------------------------------------
+// Einstellungen ändern — Auswahl statt Durchlauf
+// ---------------------------------------------------------------------------
+
+/**
+ * Was zu einer Einstellung rechts danebensteht.
+ *
+ * Bei den beiden Schlüsseln steht dort bewusst **nicht** der Wert und auch kein Ausschnitt
+ * davon, sondern nur, ob einer da ist und woher er kommt. Ein Schlüssel auf dem Schirm
+ * landet im Terminalverlauf, in Bildschirmfotos und in geteilten Sitzungen; die Frage, die
+ * man hier wirklich hat, ist ohnehin „ist einer hinterlegt, und gilt gerade der aus der
+ * Datei oder der aus der Umgebung?".
+ */
+function schluesselStand(ausDatei: string, umgebungsName: string): string {
+  const ausUmgebung = process.env[umgebungsName] ?? "";
+  if (ausUmgebung) return `aus der Umgebung (${umgebungsName})`;
+  return ausDatei ? "hinterlegt" : "nicht hinterlegt";
+}
+
+type Einstellung = "url" | "name" | "schluessel" | "mistral" | "ergebnisse" | "pruefen" | "docling";
+
+async function einstellungenMenue(cfg: Konfiguration): Promise<Einstellung | null> {
+  const a = aufgeloest(cfg);
+  const doclingDa = await doclingVerfuegbar();
+
+  return menue<Einstellung>({
+    message: "Einstellungen",
+    punkte: [
+      { wert: "url", name: "Basis-URL", hinweis: a.baseUrl },
+      { wert: "name", name: "Schlüsselname", hinweis: a.apiKeyName },
+      { wert: "schluessel", name: "API-Schlüssel", hinweis: schluesselStand(cfg.apiKey, a.apiKeyName) },
+      { wert: "mistral", name: "Mistral-Schlüssel", hinweis: schluesselStand(cfg.mistralApiKey, "MISTRAL_API_KEY") },
+      { wert: "ergebnisse", name: "Ergebnisverzeichnis", hinweis: a.ergebnisVerzeichnis },
+      { wert: "pruefen", name: "Verbindung prüfen", hinweis: "kostenlos" },
+      { wert: "docling", name: "Docling", hinweis: doclingDa ? "eingerichtet" : "nicht eingerichtet" },
+    ],
+  });
+}
+
+/**
+ * Menüpunkt „Einstellungen" und Slash-Befehl `/config`.
+ *
+ * Anders als die Ersteinrichtung fragt das hier **nicht** alle Werte der Reihe nach ab. Wer
+ * nur den Mistral-Schlüssel nachtragen will, soll nicht durch vier fremde Felder tippen —
+ * und wer sich bloß ansehen will, was eingestellt ist, soll gar nichts ändern müssen. Die
+ * Liste zeigt deshalb jeden Wert direkt an; geändert wird genau das, was man auswählt.
+ */
 export async function einstellungenDialog(): Promise<void> {
   if (!istInteraktiv()) return keinTtyMeldung();
   try {
-    await dialogAblauf("Einstellungen ändern");
+    for (;;) {
+      const cfg = laden();
+      const wahl = await einstellungenMenue(cfg);
+      if (wahl === null) return; // Esc
+
+      switch (wahl) {
+        case "url":
+          cfg.baseUrl = await frageBasisUrl(cfg.baseUrl || VORGABE.baseUrl);
+          break;
+        case "name":
+          cfg.apiKeyName = await frageSchluesselName(cfg.apiKeyName || VORGABE.apiKeyName);
+          break;
+        case "schluessel": {
+          const ausUmgebung = process.env[cfg.apiKeyName] ?? "";
+          if (ausUmgebung && !cfg.apiKey) {
+            console.log(`Ein Schlüssel steht bereits in der Umgebungsvariablen ${cfg.apiKeyName}.`);
+          }
+          cfg.apiKey = await frageSchluessel(
+            "API-Schlüssel",
+            cfg.apiKey,
+            ausUmgebung === "",
+            ` (Enter übernimmt den Schlüssel aus ${cfg.apiKeyName})`,
+          );
+          break;
+        }
+        case "mistral":
+          cfg.mistralApiKey = await frageSchluessel(
+            "Mistral-API-Schlüssel (OCR für gescannte Seiten)",
+            cfg.mistralApiKey,
+            false,
+          );
+          break;
+        case "ergebnisse":
+          cfg.ergebnisVerzeichnis = await frageErgebnisVerzeichnis(
+            cfg.ergebnisVerzeichnis || ergebnisVerzeichnisDefault(),
+          );
+          break;
+        case "pruefen":
+          meldungAusgeben(await pruefeAnbieter(aufgeloest(cfg)));
+          meldungAusgeben(await pruefeMistral(aufgeloest(cfg)));
+          continue; // nichts geändert — nicht speichern, nicht das Modell verwerfen
+        case "docling":
+          await doclingStatusUndEinrichtung();
+          continue;
+      }
+
+      speichern(cfg);
+      // Das Modell hängt an Endpunkt und Schlüssel und wird zwischengespeichert; ohne diese
+      // Zeile liefe der nächste Lauf mit den alten Zugangsdaten weiter.
+      modellZuruecksetzen();
+    }
   } catch (fehler) {
     if (istAbbruch(fehler)) {
       console.log("\nAbgebrochen.");

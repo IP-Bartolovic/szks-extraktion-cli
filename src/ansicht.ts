@@ -30,6 +30,7 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { select } from "@inquirer/prompts";
+import { FIELD_CATALOG } from "../vendor/field-catalog.generated.js";
 import { STATUS_TEXT, UNKLAR_GRUND_TEXT } from "../vendor/labels.js";
 import type { ExtractionSummary, SummaryEntry } from "../vendor/nodes/summarize.js";
 
@@ -210,6 +211,89 @@ function gruppeAusgeben(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Übersicht nach Bereich
+// ---------------------------------------------------------------------------
+
+/**
+ * Anzeigename eines Bereichs. `SummaryEntry.category` trägt den Slug
+ * (`anlagen-und-kesseldaten`) — angezeigt gehört die Überschrift der Anfragemaske
+ * („Anlagen- und Kesseldaten"). Beides steht im Feldkatalog; die Zuordnung wird einmal
+ * gebaut und trägt gleich die Reihenfolge mit, in der die Bereiche in der Excel stehen.
+ */
+const BEREICHE: { slug: string; name: string }[] = (() => {
+  const gesehen = new Map<string, string>();
+  for (const f of FIELD_CATALOG) {
+    if (!gesehen.has(f.category)) gesehen.set(f.category, f.categoryLabel);
+  }
+  return [...gesehen].map(([slug, name]) => ({ slug, name }));
+})();
+
+const BEREICHS_NAME = new Map(BEREICHE.map((b) => [b.slug, b.name]));
+
+export function bereichsName(slug: string): string {
+  return BEREICHS_NAME.get(slug) ?? slug;
+}
+
+/**
+ * Die Übersicht: wie vollständig ist jeder Bereich der Anfragemaske?
+ *
+ * Der Zahlenkopf („64 gefunden · 3 unklar · 4 leer") sagt, **wie viel** fehlt, aber nicht
+ * **wo**. Genau das ist die Frage, die vor dem Griff zum Telefon steht: Sind die Lücken über
+ * das ganze Dokument verteilt, oder fehlt ein ganzer Block — etwa weil ein Anhang nicht
+ * mitgeschickt wurde? Ein Bereich, in dem nichts gefunden wurde, ist ein anderer Befund als
+ * fünf verstreute Einzellücken, und die Feldlisten darüber zeigen das nicht.
+ *
+ * Gezählt wird über die drei Gruppen der Zusammenfassung, nicht über `missing_prio_fields` —
+ * das ist eine Teilmenge von `missing_fields` und würde doppelt zählen.
+ */
+export function uebersichtAusgeben(summary: ExtractionSummary): void {
+  const breite = terminalBreite();
+
+  type Stand = { gefunden: number; unklar: number; leer: number; prioOffen: number };
+  const stand = new Map<string, Stand>();
+  const hole = (slug: string): Stand => {
+    let s = stand.get(slug);
+    if (!s) stand.set(slug, (s = { gefunden: 0, unklar: 0, leer: 0, prioOffen: 0 }));
+    return s;
+  };
+
+  for (const e of summary.fields_found) hole(e.category).gefunden++;
+  for (const e of summary.uncertain_fields) {
+    const s = hole(e.category);
+    s.unklar++;
+    if (e.prio) s.prioOffen++;
+  }
+  for (const e of summary.missing_fields) {
+    const s = hole(e.category);
+    s.leer++;
+    if (e.prio) s.prioOffen++;
+  }
+
+  const zeilen = BEREICHE.filter((b) => stand.has(b.slug));
+  const nb = Math.min(38, Math.max(...zeilen.map((b) => b.name.length), 6));
+  const spalte = (n: number) => (n === 0 ? "-" : String(n)).padStart(8);
+
+  console.log();
+  console.log("Übersicht nach Bereich");
+  console.log(`${EINZUG}${"".padEnd(nb)}${"gefunden".padStart(8)}${"unklar".padStart(8)}${"leer".padStart(8)}`);
+
+  for (const b of zeilen) {
+    const s = stand.get(b.slug)!;
+    const marke = s.prioOffen > 0 ? "  *" : "";
+    console.log(`${EINZUG}${fuellen(b.name, nb)}${spalte(s.gefunden)}${spalte(s.unklar)}${spalte(s.leer)}${marke}`);
+  }
+
+  const c = summary.counts;
+  console.log(`${EINZUG}${"".padEnd(nb, "-")}${"".padEnd(24, "-")}`.slice(0, breite));
+  console.log(`${EINZUG}${fuellen("Gesamt", nb)}${spalte(c.found)}${spalte(c.uncertain)}${spalte(c.missing)}`);
+
+  if (zeilen.some((b) => stand.get(b.slug)!.prioOffen > 0)) {
+    console.log();
+    console.log(`${EINZUG}* Bereich enthält offene Prio-Felder`);
+  }
+}
+
 /**
  * Der Kopf eines Ergebnisses. Die zweite Zeile ist die eigentlich wichtige: die Prio-Felder
  * entscheiden, ob aus der Anfrage ein Angebot werden kann.
@@ -248,6 +332,10 @@ export function zusammenfassungAusgeben(summary: ExtractionSummary): void {
     false,
     breite,
   );
+
+  // Zum Schluss, nicht zum Anfang: Die Listen darüber sind die Arbeitsliste, die Übersicht
+  // ist die Einordnung. Umgekehrt stünde die Zusammenfassung vor dem, was sie zusammenfasst.
+  uebersichtAusgeben(summary);
 }
 
 /**
@@ -266,7 +354,9 @@ export function gefundeneWerteAusgeben(summary: ExtractionSummary): void {
   for (const e of summary.fields_found) {
     if (e.category !== letzteKategorie) {
       console.log();
-      console.log(`${e.category}`);
+      // Die Überschrift der Anfragemaske, nicht der Slug: `SummaryEntry.category` trägt
+      // `anlagen-und-kesseldaten`, gemeint ist "Anlagen- und Kesseldaten".
+      console.log(bereichsName(e.category));
       letzteKategorie = e.category;
     }
     const seite = seitenText(e);
