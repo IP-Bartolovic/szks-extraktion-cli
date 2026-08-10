@@ -7,10 +7,45 @@ Läuft auf **macOS und Windows**.
 
 ---
 
-## Installation
+## Voraussetzungen
 
-Es gibt genau eine Voraussetzung: **Node.js 20 oder neuer**
-([nodejs.org](https://nodejs.org) — der Standard-Installer genügt, auf beiden Systemen).
+Zwei Programme, beide mit Standard-Installer, beide für macOS und Windows:
+
+| | Wozu | Download |
+|---|---|---|
+| **Node.js 20 oder neuer** | Laufzeit des Werkzeugs | **[nodejs.org/en/download](https://nodejs.org/en/download)** → die **LTS**-Fassung, `.pkg` (macOS) bzw. `.msi` (Windows) |
+| **Git** | um das Werkzeug zu holen und aktuell zu halten | **[git-scm.com/downloads](https://git-scm.com/downloads)** — unter macOS meist schon da (`git --version` im Terminal probieren) |
+
+**Mehr nicht.** Insbesondere **kein Python**, kein Compiler, kein poppler: Den PDF-Parser
+samt eigener Python-Laufzeit richtet `npm install` selbst ein.
+
+Prüfen, ob es reicht — im Terminal (macOS) bzw. in der Eingabeaufforderung oder PowerShell
+(Windows):
+
+```bash
+node --version    # muss v20.x oder höher zeigen
+git --version
+```
+
+### Zwei Zugangsschlüssel
+
+| | Wozu | Wo anlegen |
+|---|---|---|
+| **OpenAI API Key** | die Extraktion selbst — **erforderlich** | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
+| **Mistral API Key** | Texterkennung für **gescannte** Seiten — optional, aber empfohlen | [console.mistral.ai/api-keys](https://console.mistral.ai/api-keys) |
+
+Beide werden beim ersten Start abgefragt; vorher besorgen spart einen Durchgang. Warum der
+Mistral-Schlüssel trotz „optional" wichtig ist, steht [weiter unten](#warum-der-mistral-api-key-wichtig-ist).
+
+### Empfohlen unter Windows
+
+**[Windows Terminal](https://aka.ms/terminal)** (kostenlos, Microsoft Store). Es stellt
+Umlaute in Feldnamen wie „Kessellänge" zuverlässig dar. Das Werkzeug schaltet die alte
+Eingabeaufforderung zwar selbst auf UTF-8 um, aber Windows Terminal ist der ruhigere Weg.
+
+---
+
+## Installation
 
 ```bash
 git clone https://github.com/IP-Bartolovic/szks-extraktion-cli.git
@@ -30,7 +65,7 @@ Nachholen lässt er sich jederzeit:
 npm run setup:docling
 ```
 
-### Unter Windows
+### Windows: Pfadlänge und Befehlssyntax
 
 **Den Projektordner nah an die Laufwerkswurzel legen** — etwa `C:\szks`. Windows bricht bei
 260 Zeichen Pfadlänge ab, und die Python-Umgebung legt darunter Dateien mit rund 185
@@ -47,8 +82,8 @@ Umgebungsvariablen schreiben sich anders:
 | Docling-Einrichtung überspringen | `set SZKS_SKIP_DOCLING=1 && npm install` | `$env:SZKS_SKIP_DOCLING=1; npm install` |
 | API Key als Variable setzen | `set OPENAI_API_KEY=sk-...` | `$env:OPENAI_API_KEY="sk-..."` |
 
-Die Konsole wird beim Start selbsttätig auf UTF-8 gestellt (`chcp 65001`), damit Umlaute in
-Feldnamen wie „Kessellänge" richtig erscheinen.
+Die Konsole wird beim Start selbsttätig auf UTF-8 gestellt (`chcp 65001`) — siehe
+[Empfohlen unter Windows](#empfohlen-unter-windows).
 
 ## Starten
 

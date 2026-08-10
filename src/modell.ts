@@ -40,6 +40,22 @@ export const MODELL_ID = "gpt-5.6-luna";
 const OPENROUTER_PRAEFIX = "openai/";
 
 /**
+ * Denkaufwand des Modells — **muss mit dem Pipeline-Repo übereinstimmen**
+ * (`REASONING_EFFORT` in `src/model.ts` dort).
+ *
+ * Gemessen am 2026-08-10 auf Dok 4, sonst identische Konfiguration: Von 72 Feldern änderte
+ * sich genau eines, und zwar von falsch auf richtig — `Kunde Projektname` trug ohne
+ * Reasoning die Losbezeichnung statt des Gesamtprojekts. Die Laufzeit stieg dabei nicht
+ * (33,5 s gegen 40,2 s).
+ *
+ * Läuft das Werkzeug auf einer anderen Stufe als die Eval, erprobt Ben eine andere
+ * Pipeline als die gemessene. Auffallen würde das niemandem: Beide Seiten liefern
+ * plausible Ergebnisse, nur eben nicht dieselben. Deshalb steht die Stufe hier als
+ * Konstante und nicht in den Einstellungen — sie bestimmt das Ergebnis.
+ */
+const REASONING_EFFORT = "high" as const;
+
+/**
  * Erzwingt OpenAI als Upstream statt eines beliebigen OpenRouter-Anbieters.
  *
  * **Nur bei OpenRouter.** Das Feld reist im Anfragekörper mit; ein anderer
@@ -86,6 +102,9 @@ export function modell(): BaseChatModel {
     // Chat Completions spricht jeder OpenAI-kompatible Anbieter, die Responses-API nicht.
     // LangChain würde für IDs, die auf `gpt-`/`o1` passen, sonst selbsttätig umschalten.
     useResponsesApi: false,
+    // `reasoning` statt des veralteten `reasoningEffort`; ChatOpenAI übersetzt es je API
+    // (`reasoning_effort` bei Chat Completions).
+    reasoning: { effort: REASONING_EFFORT },
     ...(beiOpenRouter ? { modelKwargs: { ...OPENROUTER_ROUTING } } : {}),
   }) as unknown as BaseChatModel;
 
