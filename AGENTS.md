@@ -167,6 +167,23 @@ Ordner auf, `import.meta.url` zeigt also in den Klon. Damit bleiben `.werkzeuge/
 globales `install` kopierte die Dateien stattdessen ins globale `node_modules`, und die
 Ergebnis-CSVs landeten dort — praktisch unauffindbar.
 
+**Das Verlinken macht `postinstall` selbst**, es ist kein zweiter Schritt für Ben. Zwei
+Details daran sind bewusst:
+
+- **Vor** der Docling-Einrichtung. Verlinken dauert eine Drittelsekunde, Docling Minuten und
+  kann an Netz oder Platte scheitern. Andersherum hätte Ben nach einem gescheiterten
+  Download auch keinen Befehl, mit dem er sich die Lage ansehen könnte — obwohl das Werkzeug
+  startbar ist und den Fehlschlag im Einrichtungsdialog erklärt.
+- Aufgerufen über `npm_execpath` mit dem laufenden Node, nicht über den Namen `npm`: Unter
+  Windows ist das eine `.cmd`, die ohne Shell nicht startet — und eine Shell will diese
+  Datei nirgends (Repo-Pfade mit Leerzeichen).
+
+Gemessen mit npm 10: `npm link` löst `postinstall` **nicht** erneut aus. Der Wächter
+`SZKS_IN_LINK` steht trotzdem da; die Lebenszyklus-Regeln haben sich zwischen
+npm-Hauptversionen schon geändert, und eine Endlosschleife im Installationsschritt wäre ein
+teurer Weg, das herauszufinden. Abschalter: `SZKS_SKIP_LINK=1`. Als Abhängigkeit eines
+anderen Projekts installiert (`INIT_CWD` ≠ Repo) wird ohnehin nicht verlinkt.
+
 ## Externe Voraussetzungen
 
 **Node ≥ 20 — sonst nichts.** Kein Python, kein poppler, kein Compiler. Docling bringt

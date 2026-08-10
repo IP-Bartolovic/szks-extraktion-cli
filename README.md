@@ -58,17 +58,13 @@ Ein Befehl, von überall — wie `git` oder `node`:
 szks
 ```
 
-Damit es den gibt, einmalig im Projektordner:
+`npm install` hat ihn eingerichtet, es ist kein weiterer Schritt nötig. Der Befehl zeigt
+auf **diesen** Projektordner: Ein `git pull` wirkt sofort, und Ergebnisse, Einstellungen
+und die Docling-Umgebung bleiben hier, auch wenn `szks` von ganz woanders gestartet wird.
 
-```bash
-npm link
-```
-
-Das legt `szks` in den globalen Befehlspfad und lässt es auf **diesen** Ordner zeigen.
-Ein `git pull` wirkt damit sofort, ohne dass etwas neu installiert werden muss. Ergebnisse
-und Einrichtung bleiben ebenfalls hier — auch wenn `szks` von ganz woanders gestartet wird.
-
-Falls `npm link` an fehlenden Rechten scheitert, geht es ohne globalen Befehl genauso:
+Sollte der globale Befehl nicht angelegt worden sein — das meldet `npm install` dann
+ausdrücklich, meist wegen fehlender Rechte am globalen Befehlspfad —, geht es genauso aus
+dem Projektordner heraus:
 
 ```bash
 npm start

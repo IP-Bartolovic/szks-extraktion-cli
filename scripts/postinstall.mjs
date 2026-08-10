@@ -1,5 +1,6 @@
 /**
- * Läuft automatisch bei `npm install` und richtet Docling ein.
+ * Läuft automatisch bei `npm install`: legt den globalen Befehl `szks` an und richtet
+ * Docling ein — in dieser Reihenfolge.
  *
  * ## Diese Datei darf nicht scheitern
  *
@@ -39,6 +40,7 @@ const TSX = path.join(REPO, "node_modules", "tsx", "dist", "cli.mjs");
 const EINRICHTEN = path.join(REPO, "scripts", "setup-docling.ts");
 
 const NACHHOLEN = "Nachholen jederzeit mit:  npm run setup:docling";
+const NACHHOLEN_LINK = "Nachholen jederzeit mit:  npm link";
 
 /**
  * `SZKS_SKIP_DOCLING=1 npm install` ist POSIX-Syntax. Weder `cmd.exe` noch PowerShell
@@ -72,6 +74,74 @@ function abgeschaltet() {
   }
   return null;
 }
+
+/**
+ * Legt den globalen Befehl `szks` an — **vor** der Docling-Einrichtung.
+ *
+ * Die Reihenfolge ist der Punkt: Das Verlinken dauert eine Drittelsekunde, die
+ * Docling-Einrichtung Minuten und kann an Netz, Proxy oder Platte scheitern. Liefe es
+ * andersherum, hätte Ben nach einem gescheiterten Download **auch** keinen Befehl, mit dem
+ * er die Lage ansehen könnte — obwohl das Werkzeug startbar ist und den Fehlschlag im
+ * Einrichtungsdialog erklären würde.
+ *
+ * **`npm link` und nicht `npm install -g .`**: Gemessen löst Node den Symlink auf den
+ * echten Ordner auf, `import.meta.url` zeigt also in den Klon. Damit bleiben
+ * `.werkzeuge/`, `.cache/` und vor allem `ergebnisse/` dort, wo sie erwartet werden, und
+ * ein `git pull` wirkt sofort. Ein globales `install` kopierte die Dateien stattdessen ins
+ * globale `node_modules`, und die Ergebnis-CSVs landeten dort — praktisch unauffindbar.
+ *
+ * Aufgerufen wird npm über `npm_execpath` mit dem laufenden Node, nicht über den Namen
+ * `npm`: Unter Windows ist das eine `.cmd`, die ohne Shell nicht startet, und eine Shell
+ * will diese Datei aus gutem Grund nirgends (Repo-Pfade mit Leerzeichen).
+ *
+ * Gemessen mit npm 10: `npm link` führt `postinstall` **nicht** erneut aus. Der Wächter
+ * `SZKS_IN_LINK` steht trotzdem da — die Lebenszyklus-Regeln haben sich zwischen
+ * npm-Hauptversionen schon geändert, und eine Endlosschleife im Installationsschritt wäre
+ * ein teurer Weg, das herauszufinden.
+ */
+function verlinken() {
+  return new Promise((fertig) => {
+    if (process.env.SZKS_IN_LINK === "1") return fertig(["Verlinken übersprungen (läuft bereits)."]);
+    if (process.env.SZKS_SKIP_LINK && process.env.SZKS_SKIP_LINK !== "0") {
+      return fertig(["Globaler Befehl übersprungen (SZKS_SKIP_LINK ist gesetzt)."]);
+    }
+    // Als Abhängigkeit eines anderen Projekts installiert: dann gehört uns der globale
+    // Befehlspfad nicht. `INIT_CWD` ist das Verzeichnis, in dem npm aufgerufen wurde.
+    if (process.env.INIT_CWD && path.resolve(process.env.INIT_CWD) !== REPO) {
+      return fertig([]);
+    }
+    const npmCli = process.env.npm_execpath;
+    if (!npmCli || !existsSync(npmCli)) {
+      return fertig(["Globaler Befehl nicht angelegt (npm nicht auffindbar).", NACHHOLEN_LINK]);
+    }
+
+    const kind = spawn(process.execPath, [npmCli, "link"], {
+      cwd: REPO,
+      stdio: ["ignore", "ignore", "pipe"],
+      shell: false,
+      windowsHide: true,
+      env: { ...process.env, SZKS_IN_LINK: "1" },
+    });
+
+    let fehlertext = "";
+    kind.stderr.on("data", (d) => (fehlertext += d));
+    kind.on("error", (f) => fertig([`Globaler Befehl nicht angelegt: ${f.message}`, NACHHOLEN_LINK]));
+    kind.on("close", (code) => {
+      if (code === 0) return fertig(["Der Befehl `szks` steht jetzt überall zur Verfügung."]);
+      // Der häufigste Grund sind fehlende Rechte am globalen Befehlspfad (etwa
+      // /usr/local/bin bei einer Node-Installation aus dem offiziellen Installer). Das ist
+      // kein Grund, die Installation scheitern zu lassen — `npm start` funktioniert.
+      const knapp = fehlertext.split("\n").find((z) => z.includes("EACCES") || z.includes("EPERM"));
+      fertig([
+        `Globaler Befehl nicht angelegt (Exit-Code ${code}).${knapp ? " Fehlende Rechte am globalen Befehlspfad." : ""}`,
+        "Das Werkzeug läuft trotzdem — im Projektordner:  npm start",
+        NACHHOLEN_LINK,
+      ]);
+    });
+  });
+}
+
+for (const zeile of await verlinken()) console.log(`[szks] ${zeile}`);
 
 const grund = abgeschaltet();
 if (grund) {
