@@ -77,6 +77,29 @@ const UV_ASSET = "uv-x86_64-pc-windows-msvc.zip";
 const UV_BASIS = `https://github.com/astral-sh/uv/releases/download/${UV_VERSION}`;
 
 /**
+ * Die Microsoft-C++-Laufzeit — **die eine Abhängigkeit, die weder npm noch uv mitbringt.**
+ *
+ * torch liefert seine DLLs, aber nicht die C++-Laufzeit, gegen die sie gebaut sind. Auf
+ * einem Windows, das noch nie ein Programm mit dieser Laufzeit gesehen hat, installiert
+ * `uv pip install docling` alle 104 Pakete fehlerfrei — und der erste Import von torch
+ * scheitert dann an `c10.dll`. Genau so ist es am 2026-08-10 beim ersten echten
+ * Windows-Lauf passiert.
+ *
+ * Sie gehört deshalb ins Paket. Ein Verweis auf einen Download wäre der Bruch der Zusage,
+ * die dieses ZIP überhaupt begründet: entpacken genügt.
+ *
+ * **Anders als bei Node und uv gibt es hier keine veröffentlichte Prüfsumme.** Der
+ * aka.ms-Verweis ist ein bewegliches Ziel — er zeigt immer auf die neueste Fassung, und
+ * Microsoft publiziert dazu keine Hashliste. Der Packer schreibt deshalb die aufgelöste
+ * Ziel-URL und die gemessene Prüfsumme in `HERKUNFT.txt` im Paket: nachvollziehbar ist
+ * damit, **was** ausgeliefert wurde, auch wenn sich nicht vorab prüfen lässt, ob es das
+ * Erwartete ist. Die Datei trägt zusätzlich Microsofts Authenticode-Signatur, die Windows
+ * beim Ausführen selbst prüft.
+ */
+const VCREDIST_ASSET = "vc_redist.x64.exe";
+const VCREDIST_URL = "https://aka.ms/vs/17/release/vc_redist.x64.exe";
+
+/**
  * Aus dem Paket entfernt, nachdem `git archive` alles Eingecheckte abgelegt hat.
  *
  * `CLAUDE.md` ist ein Symlink auf `AGENTS.md`. Ein Symlink überlebt den Weg durch ZIP und
@@ -225,6 +248,20 @@ const EINRICHTEN_CMD = batch([
   "echo   Bitte dieses Fenster offen lassen. Es bleibt zwischendurch mehrere",
   "echo   Minuten still - das ist normal.",
   "echo.",
+  // Vor dem teuren Teil, nicht danach: Fehlt die Laufzeit, laeuft die Installation
+  // 20 Minuten durch und scheitert erst im Probelauf an einer DLL.
+  'if exist "%SystemRoot%\\System32\\vcruntime140_1.dll" goto :vcfertig',
+  "echo   Die Microsoft C++ Laufzeit fehlt und wird jetzt installiert.",
+  "echo   Windows fragt dabei nach Administratorrechten.",
+  "echo.",
+  '"%~dp0.werkzeuge\\vc_redist.x64.exe" /install /passive /norestart',
+  'if exist "%SystemRoot%\\System32\\vcruntime140_1.dll" goto :vcfertig',
+  "echo.",
+  "echo   Hinweis: Die Laufzeit ist weiterhin nicht da. Ohne sie kann der PDF-Leser",
+  "echo   spaeter nicht starten. Ursache ist meist eine abgelehnte Rueckfrage nach",
+  "echo   Administratorrechten. Die Einrichtung laeuft trotzdem weiter.",
+  "echo.",
+  ":vcfertig",
   '"%~dp0node\\node.exe" "%~dp0node_modules\\tsx\\dist\\cli.mjs" "%~dp0scripts\\setup-docling.ts"',
   "set FEHLER=%ERRORLEVEL%",
   "echo.",
@@ -280,6 +317,35 @@ const KONSOLE_CMD = batch([
   "echo     npm run setup:docling",
   "echo.",
   "cmd /k",
+]);
+
+/**
+ * Der Reparaturweg für den Fall, den `EINRICHTEN.cmd` **nicht** abfängt: Die Laufzeit ist
+ * da, aber zu alt oder beschädigt.
+ *
+ * Die Prüfung dort fragt nur, ob `vcruntime140_1.dll` existiert — und genau diese Frage
+ * beantwortet Windows-Fehler **1114** mit „ja". Das Modul wurde gefunden und ist beim
+ * Starten gescheitert; eine ältere Fassung sieht für die Existenzprüfung aus wie eine
+ * passende. Hier wird der Installer deshalb bedingungslos gestartet, er repariert und
+ * aktualisiert eine vorhandene Installation.
+ */
+const VC_LAUFZEIT_CMD = batch([
+  ...KOPF,
+  "title SZKS Extraktion - C++ Laufzeit reparieren",
+  "echo.",
+  "echo   Microsoft C++ Laufzeit reparieren",
+  "echo   =================================",
+  "echo.",
+  "echo   Dieser Weg hilft, wenn die Einrichtung mit einem Fehler zu c10.dll oder",
+  "echo   einer anderen DLL abgebrochen ist - besonders bei Windows-Fehler 1114.",
+  "echo   Windows fragt gleich nach Administratorrechten.",
+  "echo.",
+  '"%~dp0.werkzeuge\\vc_redist.x64.exe" /install /passive /norestart',
+  "echo.",
+  "echo   Danach EINRICHTEN.cmd erneut starten. Die 1,7 GB werden nicht noch einmal",
+  "echo   geladen - es geht direkt zum Probelauf.",
+  "echo.",
+  ...HALT,
 ]);
 
 /** UTF-8 mit BOM und CRLF — so zeigt auch ein altes Notepad die Umlaute richtig an. */
@@ -349,6 +415,8 @@ const ANLEITUNG = textdatei([
   "",
   "5. WENN ETWAS KLEMMT",
   "",
+  "   Fehler zu c10.dll oder einer       →  C++-LAUFZEIT-REPARIEREN.cmd starten,",
+  "   anderen .dll, meist „WinError 1114“   danach EINRICHTEN.cmd erneut",
   "   „Docling ist nicht eingerichtet“   →  EINRICHTEN.cmd starten",
   "   Ein Befehl aus einer Meldung soll  →  KONSOLE.cmd öffnen; dort sind node",
   "   ausgeführt werden                     und npm verfügbar",
@@ -427,6 +495,26 @@ async function main(): Promise<void> {
   await cp(path.join(uvAus, "uv.exe"), path.join(ZIEL, ".werkzeuge", "uv.exe"));
   await rm(uvAus, { recursive: true, force: true });
 
+  // --- Microsoft-C++-Laufzeit ----------------------------------------------
+  melde("Microsoft-C++-Laufzeit ...");
+  const vcDatei = path.join(DOWNLOADS, VCREDIST_ASSET);
+  let vcHerkunft: string;
+  if (existsSync(vcDatei)) {
+    const daten = await readFile(vcDatei);
+    vcHerkunft = `${VCREDIST_URL}\n  sha256 ${sha256(daten)}  (aus ${DOWNLOADS})`;
+    melde(`  ${VCREDIST_ASSET} liegt bereits vor.`);
+  } else {
+    const antwort = await fetch(VCREDIST_URL, { redirect: "follow" });
+    if (!antwort.ok) throw new Error(`HTTP ${antwort.status} bei ${VCREDIST_URL}`);
+    const daten = Buffer.from(await antwort.arrayBuffer());
+    await writeFile(vcDatei, daten);
+    // Aufgelöste Ziel-URL und Prüfsumme festhalten: Ohne veröffentlichte Hashliste ist das
+    // die einzige Auskunft darüber, welche Fassung im Paket steckt.
+    vcHerkunft = `${VCREDIST_URL}\n  aufgeloest auf ${antwort.url}\n  sha256 ${sha256(daten)}`;
+    melde(`  geladen, sha256 ${sha256(daten).slice(0, 16)}...`);
+  }
+  await cp(vcDatei, path.join(ZIEL, ".werkzeuge", VCREDIST_ASSET));
+
   // --- Abhängigkeiten für das Zielsystem -----------------------------------
   melde("node_modules für win32-x64 ...");
   await ausfuehren(
@@ -450,7 +538,33 @@ async function main(): Promise<void> {
   await writeFile(path.join(ZIEL, "EINRICHTEN.cmd"), EINRICHTEN_CMD, "utf8");
   await writeFile(path.join(ZIEL, "STARTEN.cmd"), STARTEN_CMD, "utf8");
   await writeFile(path.join(ZIEL, "KONSOLE.cmd"), KONSOLE_CMD, "utf8");
+  await writeFile(path.join(ZIEL, "C++-LAUFZEIT-REPARIEREN.cmd"), VC_LAUFZEIT_CMD, "utf8");
   await writeFile(path.join(ZIEL, "ANLEITUNG.txt"), ANLEITUNG, "utf8");
+  await writeFile(
+    path.join(ZIEL, "HERKUNFT.txt"),
+    textdatei([
+      "Woher die mitgelieferten Fremdbestandteile stammen",
+      "==================================================",
+      "",
+      `Node ${NODE_VERSION} (Windows x64)`,
+      `  ${NODE_BASIS}/${NODE_ASSET}`,
+      "  geprueft gegen die veroeffentlichte SHASUMS256.txt",
+      "",
+      `uv ${UV_VERSION} (Windows x64)`,
+      `  ${UV_BASIS}/${UV_ASSET}`,
+      "  geprueft gegen die mitveroeffentlichte .sha256",
+      "",
+      "Microsoft Visual C++ Redistributable x64",
+      `  ${vcHerkunft}`,
+      "  Zu diesem Verweis gibt es keine veroeffentlichte Hashliste; die Pruefsumme oben",
+      "  ist die gemessene der ausgelieferten Datei. Die Datei traegt Microsofts",
+      "  Authenticode-Signatur, die Windows beim Ausfuehren selbst prueft.",
+      "",
+      "Alle npm-Abhaengigkeiten stammen aus der oeffentlichen npm-Registry, aufgeloest",
+      "gegen package-lock.json mit --os=win32 --cpu=x64.",
+    ]),
+    "utf8",
+  );
 
   // --- Gegenprobe ----------------------------------------------------------
   // Fehlt eines dieser Stücke, startet drüben nichts — und das fiele erst auf dem fremden
@@ -462,6 +576,7 @@ async function main(): Promise<void> {
     "node_modules/@esbuild/win32-x64/esbuild.exe",
     "node_modules/@napi-rs/canvas-win32-x64-msvc",
     ".werkzeuge/uv.exe",
+    ".werkzeuge/vc_redist.x64.exe",
     "bin/szks.mjs",
     "src/main.ts",
     "vendor/pdf-markdown.ts",
