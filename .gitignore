@@ -10,4 +10,8 @@ ergebnisse/
 .werkzeuge/
 .venv/
 
+# Ausgabe von `npm run paket:windows` — ein rund 130 MB großes ZIP plus die
+# heruntergeladenen Node- und uv-Archive. Alles davon ist reproduzierbar.
+paket/
+
 .DS_Store

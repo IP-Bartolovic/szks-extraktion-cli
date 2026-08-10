@@ -70,7 +70,7 @@ import { cacheVerzeichnis, werkzeugVerzeichnis } from "./pfade.js";
  * uv-Release ein anderes Verhalten nach sich, dann sichtbar in einem Commit und nicht
  * dadurch, dass die Einrichtung auf einem anderen Rechner anders ausgeht.
  */
-const UV_VERSION = "0.12.3";
+export const UV_VERSION = "0.12.3";
 
 /**
  * Dieselbe Version, die im Pipeline-Repo evaluiert wurde (`vendor/pdf-markdown.ts` nennt

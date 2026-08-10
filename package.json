@@ -12,6 +12,7 @@
     "typecheck": "npm run check:vendor && tsc -b",
     "check:vendor": "tsx scripts/check-vendor.ts",
     "setup:docling": "tsx scripts/setup-docling.ts",
+    "paket:windows": "tsx scripts/paket-windows.ts",
     "postinstall": "node scripts/postinstall.mjs"
   },
   "dependencies": {
