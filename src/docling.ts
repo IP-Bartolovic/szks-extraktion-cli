@@ -447,12 +447,40 @@ async function uvBeschaffen(melde: (zeile: string) => void): Promise<string> {
 
   // `tar -xf` erkennt das Format selbst; das bsdtar unter Windows liest auch ZIP. Damit
   // braucht es kein zweites Entpackverfahren und keine Abhängigkeit.
-  await ausfuehren("tar", ["-xf", archivDatei, "-C", arbeit], { frist: FRIST_VENV_MS });
+  //
+  // **`-m` verhindert das Wiederherstellen der Änderungszeiten**, und das ist kein
+  // Beiwerk. Gemessen am 2026-08-11 auf einem Windows-Rechner:
+  //
+  //   uv.exe: Can't restore time: Invalid argument
+  //   uvw.exe: Can't restore time: Invalid argument
+  //   uvx.exe: Can't restore time: Invalid argument
+  //   tar: Error exit delayed from previous errors.
+  //
+  // Das bsdtar aus System32 **entpackt die Dateien vollständig** und scheitert erst
+  // danach daran, ihnen den Zeitstempel aus dem Archiv zu verpassen. Es beendet sich
+  // trotzdem mit 1. Uns interessiert der Zeitstempel einer Wegwerf-Kopie überhaupt nicht:
+  // Die Datei wird gleich woandershin kopiert und das Verzeichnis gelöscht.
+  let tarFehler: Error | null = null;
+  try {
+    await ausfuehren("tar", ["-xf", archivDatei, "-m", "-C", arbeit], { frist: FRIST_VENV_MS });
+  } catch (fehler) {
+    tarFehler = fehler instanceof Error ? fehler : new Error(String(fehler));
+  }
 
   const gesucht = IST_WINDOWS ? "uv.exe" : "uv";
   const gefunden = findeBinaer(arbeit, gesucht);
+
+  // Entschieden wird am **Ergebnis**, nicht am Exit-Code: Liegt das Binary da, ist das
+  // Entpacken geglückt, ganz gleich was tar zurückgemeldet hat. Fehlt es, gilt die
+  // ursprüngliche tar-Meldung — sie trägt die Ursache, eine eigene Formulierung verlöre
+  // sie.
   if (!gefunden) {
-    throw new Error(`Im entpackten Archiv ${asset} ist kein "${gesucht}" zu finden.`);
+    throw (
+      tarFehler ?? new Error(`Im entpackten Archiv ${asset} ist kein "${gesucht}" zu finden.`)
+    );
+  }
+  if (tarFehler) {
+    melde(`Hinweis: tar meldete einen Fehler, ${gesucht} ist aber vollständig entpackt.`);
   }
 
   await copyFile(gefunden, eigenes);
