@@ -408,7 +408,15 @@ export function ordnerOeffnen(ordner: string): void {
  * Was Ben nach einem Lauf tun kann. Bleibt offen, bis er zurück ins Hauptmenü will — die
  * Werteliste anzuzeigen soll nicht bedeuten, dass er den Weg zum Ordner verloren hat.
  */
-export async function ergebnisMenue(summary: ExtractionSummary, csvPfad: string): Promise<void> {
+export async function ergebnisMenue(
+  summary: ExtractionSummary,
+  csvPfad: string,
+  // Beim Aufruf `szks <datei.pdf>` gibt es kein Menü, in das man zurückkehren könnte —
+  // dort beendet dieser Punkt das Programm. Ein Etikett, das etwas anderes verspricht als
+  // das, was gleich passiert, ist eine kleine Lüge mit großer Wirkung: Man drückt es und
+  // wundert sich.
+  zurueckEtikett = "Zurück zum Menü",
+): Promise<void> {
   // Die Zusammenfassung gehört hierher und nicht in den Aufrufer: Sie ist der Anfang
   // desselben Bildes, an dessen Ende das Menü steht. Getrennt aufgerufen war sie schon
   // einmal gar nicht aufgerufen — eine exportierte Funktion ohne Aufrufer ist gültiges
@@ -426,7 +434,7 @@ export async function ergebnisMenue(summary: ExtractionSummary, csvPfad: string)
       choices: [
         { value: "ordner", name: "Ordner öffnen" },
         { value: "werte", name: `Alle ${summary.fields_found.length} gefundenen Werte anzeigen` },
-        { value: "zurueck", name: "Zurück zum Menü" },
+        { value: "zurueck", name: zurueckEtikett },
       ],
     });
 

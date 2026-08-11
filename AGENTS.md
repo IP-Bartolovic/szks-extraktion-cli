@@ -190,6 +190,7 @@ vendor/            KOPIE — nicht anfassen
 
 ```bash
 szks                   # das Werkzeug, von überall (nach einmaligem `npm link`)
+szks <datei.pdf>       # dieses Dokument sofort auswerten, ohne Menü
 npm start              # dasselbe, aus dem Projektordner
 npm run typecheck      # check:vendor + tsc
 npm run check:vendor   # nur der Prüfsummenabgleich
@@ -224,6 +225,30 @@ Die Batchdateien sind **rein ASCII** und CRLF; `batch()` prüft das und wirft so
 `cmd.exe` liest seine Datei beim Abarbeiten häppchenweise mit der gerade gültigen Codepage
 — ein `chcp 65001` in Zeile zwei ändert die Regeln also mitten im Lesen. Die Umlaute gehören
 deshalb ins Werkzeug, das sie als UTF-8 schreibt, und nicht in den Starter.
+
+### `szks <datei.pdf>` — dieselbe Bahn, nur ohne die erste Frage
+
+Der Aufruf mit Pfad geht durch **denselben** Code wie das Menü (`auswerten` aus `run.ts`);
+übersprungen wird nur die Dateiauswahl. Ein zweiter Weg mit eigener Logik wäre genau der
+Bruch, gegen den dieses Repo gebaut ist.
+
+Drei Entscheidungen darin:
+
+1. **Kein TTY nötig.** Die Menüschleife verlangt eines, weil sie fragt; ein Aufruf mit
+   fertigem Pfad fragt nichts. Ohne Terminal entfällt am Ende nur die Auswahlliste,
+   Zusammenfassung und CSV-Pfad gehen auf die Ausgabe. Damit ist derselbe Code skriptfähig
+   — die Richtung, in die die Pipeline produktiv ohnehin geht.
+   Ausnahme ist die Ersteinrichtung: Ohne Schlüssel gelingt kein Lauf, und ohne Terminal
+   lässt sich keiner erfragen. Dann Abbruch mit Exit-Code 1.
+2. **Ein unbekannter Schalter wird abgelehnt**, nicht als Dateiname gedeutet. Sonst
+   antwortete `szks --hlep` mit „Nicht gefunden: /…/--hlep" — richtig, aber an der falschen
+   Stelle erklärt.
+3. **Ein Dokument je Aufruf.** Mehrere anzunehmen wäre Stapelverarbeitung durch die
+   Hintertür; stillschweigend nur die erste zu nehmen wäre schlimmer als die Absage.
+
+Das Etikett des letzten Menüpunkts ist deshalb ein Parameter von `ergebnisMenue`: Dort steht
+„Beenden" statt „Zurück zum Menü", weil es in dieser Aufrufform kein Menü gibt, in das man
+zurückkehren könnte.
 
 ### Der globale Befehl: `bin/szks.mjs`
 

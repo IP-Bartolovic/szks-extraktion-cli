@@ -153,6 +153,34 @@ SZKS Extraktion
     Beenden
 ```
 
+### Direkt ein Dokument auswerten
+
+Wer den Pfad schon hat, kann das Menü überspringen:
+
+```bash
+szks Anfrage_VKB-2026-0143.pdf
+szks "~/Downloads/Ausschreibung Los 7.pdf"     # Anführungszeichen sind erlaubt
+```
+
+Die Datei wird sofort ausgewertet; danach erscheinen Zusammenfassung, CSV-Pfad und die
+gewohnten Punkte („Ordner öffnen", „Alle Werte anzeigen"), nur endet es dort statt im
+Hauptmenü.
+
+**Anführungszeichen um den Pfad sind ausdrücklich erlaubt** — genau so liefert ihn das
+Terminal, wenn man eine Datei ins Fenster zieht. Sie werden entfernt.
+
+Es geht **ein** Dokument je Aufruf. Für mehrere nacheinander aufrufen; eine
+Stapelverarbeitung ist bewusst nicht Teil des Werkzeugs.
+
+Nebeneffekt: In dieser Form braucht das Werkzeug kein Terminal mehr, weil es nichts mehr
+fragt. Der Aufruf lässt sich also auch in ein Skript schreiben — dann entfällt am Ende nur
+die Auswahlliste, und Zusammenfassung und CSV-Pfad gehen auf die Ausgabe. Der Exit-Code ist
+`0` bei Erfolg und `1`, wenn der Lauf nicht stattgefunden hat.
+
+```bash
+szks --help          # kurze Übersicht der Aufrufformen
+```
+
 ---
 
 ## Was man einstellen muss
