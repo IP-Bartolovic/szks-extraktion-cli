@@ -150,7 +150,15 @@ export class Fortschritt {
  */
 function leseText(parsed: PdfParseResult): string {
   const teile = [`${parsed.pages} Seiten`];
-  if (parsed.scanPages.length > 0) {
+
+  // Der abweichende Leser wird **immer** genannt, nicht nur auf Nachfrage. Ein Befund aus
+  // dem OCR-Weg sagt über die produktive Pipeline nur bedingt etwas aus, und die einzige
+  // Stelle, an der das noch auffallen kann, ist hier — später steht in der CSV nur der
+  // Wert. Der Docling-Weg bleibt stumm: Er ist der Normalfall, und eine Zeile, die bei
+  // jedem Lauf dasselbe sagt, wird nach dem dritten Mal nicht mehr gelesen.
+  if (parsed.parser === "mistral-ocr") {
+    teile.push("vollständig per Mistral OCR gelesen (nicht der geprüfte Weg)");
+  } else if (parsed.scanPages.length > 0) {
     const zusatz = parsed.ocrPages.length > 0 ? "" : " (ohne Mistral-Schlüssel gelesen)";
     teile.push(`${parsed.scanPages.length} davon gescannt${zusatz}`);
   }
@@ -189,12 +197,30 @@ export async function auswerten(pdfPfad: string): Promise<Laufergebnis | null> {
   // Muss vor dem ersten Vendor-Import stehen — siehe Modulkommentar.
   umgebungSetzen(cfg, doclingPfad());
 
-  if (!(await doclingVerfuegbar())) {
+  // Welcher Leser eingestellt ist, entscheidet, was überhaupt vorhanden sein muss. Beide
+  // Prüfungen laufen **vor** dem ersten teuren Schritt: Ein Abbruch nach dem Parsen wäre
+  // bei OCR ein bezahlter Abbruch.
+  const gewaehlt = aufgeloest(cfg).parser;
+
+  if (gewaehlt === "mistral-ocr") {
+    if (!aufgeloest(cfg).mistralApiKey) {
+      console.log();
+      console.log("Der Leser „Mistral OCR“ ist eingeschaltet, aber es fehlt der Mistral API Key.");
+      console.log("  Ohne ihn lässt sich das Dokument nicht lesen.");
+      console.log("  Einstellungen → Mistral API Key eintragen,");
+      console.log("  oder dort wieder auf Docling umstellen.");
+      return null;
+    }
+  } else if (!(await doclingVerfuegbar())) {
     console.log();
     console.log("Docling ist nicht eingerichtet.");
     console.log("  Docling liest das PDF und erzeugt daraus Text, Überschriften und Tabellen.");
     console.log("  Ohne Docling lässt sich kein Dokument auswerten.");
     console.log("  Menüpunkt „Docling einrichten“ — oder in der Konsole: npm run setup:docling");
+    console.log();
+    console.log("  Alternative ohne Docling: Einstellungen → Leser auf „Mistral OCR“ stellen.");
+    console.log("  Das liest das ganze Dokument per OCR, kostet rund 0,4 Cent je Seite und");
+    console.log("  weicht vom geprüften Weg ab — die Ausgabe weist es aus.");
     return null;
   }
 

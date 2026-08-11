@@ -233,6 +233,22 @@ export interface PdfParseResult {
    * Diagnose, damit die Verlustrate messbar bleibt statt still zu wachsen.
    */
   lostTokens: string[];
+  /**
+   * Womit das Dokument gelesen wurde.
+   *
+   * `"docling"` ist der reguläre und der **evaluierte** Weg. `"mistral-ocr"` wird
+   * ausdrücklich gewählt (`parser`-Option bzw. `SZKS_PARSER`) und liest das **ganze**
+   * Dokument per Vision-OCR — auch die Seiten mit vorhandenem Text-Layer.
+   *
+   * Das Feld ist nicht Statistik, sondern eine **Warnung, die mitreisen muss**: Ein Befund
+   * aus dem OCR-Weg sagt über die produktive Pipeline nur bedingt etwas aus. Wer es beim
+   * Auswerten wegwirft, stellt genau die Verwechslung wieder her, gegen die die
+   * Vendor-Sperre gebaut ist.
+   *
+   * Optional, weil Cache-Einträge aus der Zeit davor es nicht tragen — die stammen
+   * ausnahmslos von Docling und werden beim Lesen entsprechend ergänzt.
+   */
+  parser?: ParserQuelle;
   parseMs: number;
 }
 
@@ -241,6 +257,35 @@ export interface PdfToMarkdownOptions {
   cacheDir?: string;
   /** Default: `.venv/bin/docling` im Projekt-Root, bzw. `DOCLING_BIN`, bzw. `docling` im PATH. */
   doclingBin?: string;
+  /**
+   * Welcher Leser. Default `"docling"`, bzw. `SZKS_PARSER` aus der Umgebung.
+   *
+   * **Kein Rückfall, sondern eine Wahl.** Der OCR-Weg springt nicht ein, wenn Docling
+   * scheitert — er wird ausdrücklich eingeschaltet. Der Unterschied ist wichtiger, als er
+   * aussieht: Ein automatischer Rückfall bedeutete, dass ein Lauf je nach Tagesform der
+   * Docling-Installation mit dem einen oder dem anderen Parser misst, ohne dass jemand die
+   * Entscheidung getroffen hätte. Genau diese stille Verzweigung ist der Fehlermodus, den
+   * dieses Projekt an mehreren Stellen bekämpft.
+   */
+  parser?: ParserQuelle;
+}
+
+/**
+ * Der Leser. `"docling"` ist der evaluierte Weg; `"mistral-ocr"` liest das ganze Dokument
+ * per Vision-OCR und braucht keine Docling-Installation.
+ */
+export type ParserQuelle = "docling" | "mistral-ocr";
+
+/**
+ * Löst den Leser auf. Ein unbekannter Wert wird **abgelehnt** statt stillschweigend auf
+ * den Default zurückzufallen: Ein Tippfehler in `SZKS_PARSER` sähe sonst aus wie eine
+ * getroffene Wahl und liefe auf dem anderen Weg.
+ */
+function resolveParser(explicit?: ParserQuelle): ParserQuelle {
+  const roh = explicit ?? process.env.SZKS_PARSER?.trim();
+  if (!roh) return "docling";
+  if (roh === "docling" || roh === "mistral-ocr") return roh;
+  throw new Error(`SZKS_PARSER muss "docling" oder "mistral-ocr" sein, war: "${roh}"`);
 }
 
 export async function pdfToMarkdown(pdfPath: string, opts: PdfToMarkdownOptions = {}): Promise<PdfParseResult> {
@@ -254,9 +299,21 @@ export async function pdfToMarkdown(pdfPath: string, opts: PdfToMarkdownOptions 
   // mitbestimmend für den Inhalt. Für reine Textdokumente ist es wirkungslos und
   // invalidiert den Eintrag bei einem Modellwechsel unnötig — ein Docling-Lauf ist der
   // günstigere Preis als ein Cache, der still die Lesung eines anderen Modells liefert.
+  // Der **Leser** geht mit in den Schlüssel. Ohne ihn läge für dasselbe PDF ein Eintrag im
+  // Cache, der je nach Einstellung von Docling oder vom OCR stammt — und der zweite Lauf
+  // bekäme still die Lesung des anderen Wegs. Ein Vergleich der beiden Leser, also der
+  // eigentliche Zweck des Schalters, wäre damit unmöglich.
+  //
+  // Der Docling-Weg trägt dabei **keinen** Zusatz, obwohl das unsymmetrisch aussieht. Der
+  // Grund ist bezifferbar: Ein Zusatz änderte jeden bestehenden Schlüssel, und der
+  // Neuaufbau eines Scan-Dokuments kostet OCR-Gebühren. Für einen rein kosmetischen
+  // Gleichklang alle vorhandenen Einträge wegzuwerfen wäre eine Rechnung ohne Gegenwert;
+  // getrennt gehalten werden die beiden Wege so oder so.
+  const quelle = resolveParser(opts.parser);
   const contentHash = createHash("sha256")
     .update(pdfBuffer)
     .update(`|parser-v${PARSER_VERSION}`)
+    .update(quelle === "docling" ? "" : `|leser-${quelle}`)
     .update(`|ocr-${process.env.SZKS_OCR_MODEL || "mistral-ocr-4-0"}`)
     .digest("hex");
 
@@ -265,6 +322,8 @@ export async function pdfToMarkdown(pdfPath: string, opts: PdfToMarkdownOptions 
 
   const cached = await readCache(cachePath);
   if (cached && !istNotbehelf(cached)) {
+    // `normalizeCacheEntry` hat den Leser bereits ergänzt — auch bei Alteinträgen ohne das
+    // Feld. Damit sagt jedes Ergebnis, womit es gelesen wurde, auch das aus dem Cache.
     return { ...cached, parseMs: performance.now() - start };
   }
   // Ein verworfener Notbehelf wird bewusst nicht gemeldet: Was den Nutzer angeht, ist die
@@ -275,25 +334,38 @@ export async function pdfToMarkdown(pdfPath: string, opts: PdfToMarkdownOptions 
   const info = await pdfInfo(absPdfPath);
   const { scanPages, hasTextLayer } = await classifyPages(absPdfPath, info);
 
-  const doclingBin = resolveDoclingBin(opts.doclingBin);
-  const doc = await runDocling(doclingBin, absPdfPath);
-  const pages = info.pages > 0 ? info.pages : countPages(doc);
-  const built = buildMarkdown(doc, pages);
-
-  // Seiten ohne Text-Layer durch die OCR-Lesung ersetzen. Docling hat sie zwar auch
-  // gelesen (es macht selbst OCR), aber mit erkennbar schwächerer Tabellenerkennung —
-  // und die Belege dieses Projekts sind überwiegend Tabellenzeilen.
-  let lines = built.lines;
-  let linePages = built.linePages;
+  let lines: string[];
+  let linePages: number[];
+  let pages: number;
   let ocrConfidence: { page: number; confidence: number }[] = [];
   let ocrPages: number[] = [];
 
-  if (scanPages.length > 0) {
-    const ocr = await readScanPages(absPdfPath, pdfBuffer, scanPages, pages);
-    if (ocr) {
-      ({ lines, linePages } = replacePageLines(lines, linePages, ocr.blocks));
-      ocrConfidence = ocr.confidences;
-      ocrPages = [...ocr.blocks.keys()].sort((a, b) => a - b);
+  if (quelle === "mistral-ocr") {
+    pages = info.pages;
+    ({ lines, linePages, ocrConfidence, ocrPages } = await readAllPagesViaOcr(
+      absPdfPath,
+      pdfBuffer,
+      pages,
+    ));
+  } else {
+    const doclingBin = resolveDoclingBin(opts.doclingBin);
+    const doc = await runDocling(doclingBin, absPdfPath);
+    pages = info.pages > 0 ? info.pages : countPages(doc);
+    const built = buildMarkdown(doc, pages);
+
+    // Seiten ohne Text-Layer durch die OCR-Lesung ersetzen. Docling hat sie zwar auch
+    // gelesen (es macht selbst OCR), aber mit erkennbar schwächerer Tabellenerkennung —
+    // und die Belege dieses Projekts sind überwiegend Tabellenzeilen.
+    lines = built.lines;
+    linePages = built.linePages;
+
+    if (scanPages.length > 0) {
+      const ocr = await readScanPages(absPdfPath, pdfBuffer, scanPages, pages);
+      if (ocr) {
+        ({ lines, linePages } = replacePageLines(lines, linePages, ocr.blocks));
+        ocrConfidence = ocr.confidences;
+        ocrPages = [...ocr.blocks.keys()].sort((a, b) => a - b);
+      }
     }
   }
 
@@ -309,6 +381,12 @@ export async function pdfToMarkdown(pdfPath: string, opts: PdfToMarkdownOptions 
   // eingefügten Ergänzungszeilen. `assemble` ist rein; der zweite Lauf kostet nichts außer
   // Rechenzeit und hält die Ableitungen (sections, pageLineOffsets) und den Markdown-String
   // in Deckung, statt sie nachträglich am fertigen String vorbeizuschieben.
+  //
+  // Im Leser `"mistral-ocr"` bleibt dieser Abgleich unverändert — und wird dort **wichtiger**
+  // statt überflüssig: Er prüft die OCR-Lesung gegen den nativen Text-Layer derselben
+  // Seiten, also gegen eine unabhängige zweite Quelle. Was das OCR auf einer Textseite
+  // übersehen hat, fällt genau hier auf. Für die Scan-Seiten gilt weiterhin, dass es diese
+  // zweite Quelle nicht gibt; sie sind wie zuvor ausgenommen.
   const roh = assemble(lines, linePages, pages);
   const rawText = withoutPages(await getRawText(absPdfPath), scanPages);
   const { tokens: lostTokens, lines: lostLines } = rawText
@@ -354,6 +432,7 @@ export async function pdfToMarkdown(pdfPath: string, opts: PdfToMarkdownOptions 
     ocrConfidence,
     pageLineOffsets: assembled.pageLineOffsets,
     lostTokens,
+    parser: quelle,
     parseMs: performance.now() - start,
   };
 
@@ -418,6 +497,98 @@ async function readScanPages(
     console.warn(`[pdf-markdown] ${name}: OCR fehlgeschlagen (${(err as Error).message}) — gelesen hat Docling.`);
     return null;
   }
+}
+
+/**
+ * Liest das **ganze** Dokument per Mistral-OCR — der Weg, den `parser: "mistral-ocr"`
+ * wählt. Docling wird dabei nicht aufgerufen und muss nicht installiert sein.
+ *
+ * ## Wofür das gedacht ist und wofür nicht
+ *
+ * Gedacht ist es für einen Rechner, auf dem Docling nicht läuft: 1,7 GB Python samt torch
+ * sind eine Hürde, die an einem Firmenproxy, einer alten CPU oder einer fehlenden
+ * C++-Laufzeit scheitern kann. Ein Tester, der deshalb gar nichts messen kann, ist
+ * schlechter dran als einer, der mit dem zweitbesten Leser misst.
+ *
+ * **Nicht gedacht ist es als Normalbetrieb.** Ein nativer Text-Layer ist *Daten*; OCR ist
+ * *Inferenz*. Eine Seite per Vision-Modell zu lesen, deren Text als Zeichenkette im PDF
+ * steht, tauscht eine sichere Quelle gegen eine geratene und bezahlt dafür. Der
+ * Fehlermodus daraus ist besonders unangenehm, weil er sich selbst deckt: Liest das OCR
+ * „56OO mm" statt „5600 mm", ist der Wert falsch **und der Beleg trotzdem korrekt** — das
+ * Zitat steht ja wörtlich im gelesenen Text. Kein Grader schlägt an. Deshalb steht die
+ * Quelle im Ergebnis und wird vom Werkzeug angezeigt.
+ *
+ * ## Warum hier nicht `replacePageLines` benutzt wird
+ *
+ * Die Funktion ist für das **Ersetzen** einzelner Seiten in einer bestehenden Zeilenliste
+ * gebaut und trifft dafür Annahmen über Einfügepunkte. Hier gibt es keine bestehende
+ * Liste — der Aufbau ist eine schlichte Schleife über die Seiten in ihrer Reihenfolge, und
+ * die ausgeschrieben hinzustellen ist ehrlicher, als eine Ersetzungsfunktion mit einer
+ * leeren Liste zu füttern und darauf zu vertrauen, dass ihre Sonderfälle das mitmachen.
+ */
+async function readAllPagesViaOcr(
+  absPdfPath: string,
+  pdfBuffer: Buffer,
+  pages: number,
+): Promise<{
+  lines: string[];
+  linePages: number[];
+  ocrConfidence: { page: number; confidence: number }[];
+  ocrPages: number[];
+}> {
+  const name = path.basename(absPdfPath);
+
+  // Ohne Schlüssel gibt es hier **kein** Teilergebnis, auf das man zurückfallen könnte —
+  // anders als bei `readScanPages`, wo Doclings eigene Lesung übrig bleibt. Also
+  // abbrechen, und zwar mit dem Satz, der sagt, was zu tun ist.
+  if (!process.env.MISTRAL_API_KEY) {
+    throw new Error(
+      `${name}: Der Leser "mistral-ocr" ist eingeschaltet, aber es liegt kein ` +
+        `Mistral API Key vor.\n` +
+        `  Entweder den Schlüssel in den Einstellungen eintragen,\n` +
+        `  oder wieder auf Docling umstellen.`,
+    );
+  }
+
+  const alle = Array.from({ length: pages }, (_, i) => i + 1);
+  const ocr = await ocrPages(pdfBuffer, alle);
+
+  hinweis(
+    `[pdf-markdown] ${name}: ${pages} Seite(n) vollständig per OCR gelesen, ` +
+      `~$${(ocr.pagesProcessed * OCR_PRICE_PER_PAGE).toFixed(3)}.`,
+  );
+
+  const lines: string[] = [];
+  const linePages: number[] = [];
+  const fehlend: number[] = [];
+  for (const seite of alle) {
+    const block = ocr.blocks.get(seite);
+    if (!block || block.length === 0) {
+      fehlend.push(seite);
+      continue;
+    }
+    for (const zeile of block) {
+      lines.push(zeile);
+      linePages.push(seite);
+    }
+  }
+
+  // Eine Seite ohne Ergebnis ist kein Abbruchgrund — sie kann schlicht leer sein. Still
+  // bleiben darf sie trotzdem nicht: Fehlt sie, weil das OCR sie übersprungen hat, fehlt
+  // im Ergebnis ein Stück Dokument, und keine spätere Prüfung würde das bemerken.
+  if (fehlend.length > 0) {
+    console.warn(
+      `[pdf-markdown] ${name}: ${fehlend.length} Seite(n) ohne OCR-Inhalt ` +
+        `(${formatPageList(fehlend)}) — leer oder vom OCR übersprungen.`,
+    );
+  }
+
+  return {
+    lines,
+    linePages,
+    ocrConfidence: ocr.confidences,
+    ocrPages: [...ocr.blocks.keys()].sort((a, b) => a - b),
+  };
 }
 
 /** "3, 7-9, 14" — kompakt, weil die Liste bei einem Scan-Dokument sonst die Zeile sprengt. */
@@ -1177,6 +1348,12 @@ export function normalizeCacheEntry(c: Partial<PdfParseResult> | null | undefine
     ocrConfidence: c.ocrConfidence ?? [],
     pageLineOffsets: c.pageLineOffsets ?? [],
     lostTokens: c.lostTokens ?? [],
+    // Einträge von vor der Leser-Wahl tragen das Feld nicht — die stammen ausnahmslos von
+    // Docling. Ohne diese Zeile fiele die Angabe beim Weg durch den Cache **ganz** weg und
+    // ein per OCR gelesenes Dokument meldete beim zweiten Aufruf „docling": dieselbe stille
+    // Falschauskunft, gegen die das Feld überhaupt eingeführt wurde. Diese Funktion zählt
+    // die Felder einzeln auf, ein neues wird hier also nicht von selbst mitgenommen.
+    parser: c.parser ?? "docling",
     parseMs: 0,
   };
 }

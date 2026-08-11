@@ -27,6 +27,9 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { cacheVerzeichnis, ergebnisVerzeichnisDefault, konfigDatei } from "./pfade.js";
+// Nur der Typ. `import type` wird beim Übersetzen restlos entfernt und lädt zur Laufzeit
+// nichts — die Regel „umgebungSetzen vor dem ersten Vendor-Import" bleibt damit unberührt.
+import type { ParserQuelle } from "../vendor/pdf-markdown.js";
 
 /** Höchstzahl gemerkter Dokumente in der Schnellauswahl. */
 const ZULETZT_MAX = 5;
@@ -40,6 +43,19 @@ export interface Konfiguration {
   apiKey: string;
   /** Schlüssel für Mistral OCR (Seiten ohne Text-Layer). Leer = kein OCR. */
   mistralApiKey: string;
+  /**
+   * Womit das PDF gelesen wird.
+   *
+   * `"docling"` ist der Normalfall und der **evaluierte** Weg: nativer Text-Layer, Tabellen
+   * und Überschriften, kostenlos, lokal. `"mistral-ocr"` liest das ganze Dokument per
+   * Vision-OCR und braucht keine Docling-Installation — der Ausweg für einen Rechner, auf
+   * dem sich die 1,7 GB Python nicht einrichten lassen.
+   *
+   * Umgeschaltet wird **ausdrücklich** in den Einstellungen, nie selbsttätig: Ein Werkzeug,
+   * das je nach Tagesform der Docling-Installation mit dem einen oder dem anderen Leser
+   * misst, liefert Befunde, die niemand mehr zuordnen kann.
+   */
+  parser: ParserQuelle;
   /** Zielverzeichnis der CSV-Ausgabe. */
   ergebnisVerzeichnis: string;
   /** Zuletzt ausgewertete PDFs, neueste zuerst — nur für die Schnellauswahl. */
@@ -56,6 +72,7 @@ export const VORGABE: Konfiguration = {
   apiKeyName: "OPENAI_API_KEY",
   apiKey: "",
   mistralApiKey: "",
+  parser: "docling",
   ergebnisVerzeichnis: "",
   zuletzt: [],
 };
@@ -100,6 +117,7 @@ export interface AufgelosteKonfiguration {
   apiKeyName: string;
   apiKey: string;
   mistralApiKey: string;
+  parser: ParserQuelle;
   ergebnisVerzeichnis: string;
 }
 
@@ -111,6 +129,12 @@ export function aufgeloest(cfg: Konfiguration): AufgelosteKonfiguration {
     apiKeyName,
     apiKey: process.env[apiKeyName] || cfg.apiKey || "",
     mistralApiKey: process.env.MISTRAL_API_KEY || cfg.mistralApiKey || "",
+    // Ein unbekannter Wert in der Datei fällt auf Docling zurück — anders als bei
+    // `SZKS_PARSER`, wo ein Tippfehler abgelehnt wird. Der Unterschied ist beabsichtigt:
+    // Die Umgebungsvariable tippt ein Mensch für diesen einen Lauf, die Datei schreibt das
+    // Werkzeug selbst. Steht dort Unsinn, ist sie beschädigt, und dann ist der evaluierte
+    // Weg die richtige Annahme — nicht ein Abbruch, der das Werkzeug unbenutzbar macht.
+    parser: cfg.parser === "mistral-ocr" ? "mistral-ocr" : "docling",
     ergebnisVerzeichnis: cfg.ergebnisVerzeichnis || ergebnisVerzeichnisDefault(),
   };
 }
@@ -146,4 +170,8 @@ export function umgebungSetzen(cfg: Konfiguration, doclingBin: string | null): v
   if (doclingBin) process.env.DOCLING_BIN = doclingBin;
   if (a.mistralApiKey) process.env.MISTRAL_API_KEY = a.mistralApiKey;
   else delete process.env.MISTRAL_API_KEY;
+  // Gesetzt statt weggelassen, auch für den Normalfall: Eine geerbte Shell-Variable
+  // `SZKS_PARSER=mistral-ocr` würde sonst die Einstellung überstimmen, und niemand käme
+  // darauf, in der Umgebung nach der Ursache zu suchen.
+  process.env.SZKS_PARSER = a.parser;
 }

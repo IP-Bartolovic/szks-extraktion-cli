@@ -163,6 +163,7 @@ SZKS Extraktion
 | **API Key Name** | Name der Umgebungsvariablen, unter der der Key liegt (Vorgabe `OPENAI_API_KEY`). |
 | **API Key** | Der Schlüssel. Leer lassen, wenn er als Umgebungsvariable gesetzt ist. |
 | **Mistral API Key** | Für **gescannte** Seiten. Optional, aber empfohlen — siehe unten. |
+| **PDF-Leser** | Womit das Dokument gelesen wird. Vorgabe: Docling — siehe [unten](#der-pdf-leser-umschalten-nur-im-notfall). |
 | **Output Directory** | Wohin die CSV geschrieben wird. Vorgabe: `ergebnisse/` im Projektordner. |
 
 Änderbar über den Menüpunkt „Einstellungen" oder durch Eingabe von `/config` an jeder
@@ -176,14 +177,45 @@ Einstellungen
     2  API Key Name       OPENAI_API_KEY
     3  API Key            hinterlegt
     4  Mistral API Key    nicht hinterlegt
-    5  Output Directory   /Users/ben/szks/ergebnisse
-    6  Verbindung prüfen  kostenlos
-    7  Docling            eingerichtet
+    5  PDF-Leser          Docling — geprüfter Weg, kostenlos
+    6  Output Directory   /Users/ben/szks/ergebnisse
+    7  Verbindung prüfen  kostenlos
+    8  Docling            eingerichtet
 ```
 
 > **Die Schlüssel werden im Klartext gespeichert**, in der Konfigurationsdatei im
 > Benutzerprofil (der Dialog nennt den genauen Pfad). Auf macOS ist die Datei auf den
 > eigenen Benutzer beschränkt. Kein Schlüssel gehört ins Repo.
+
+### Der PDF-Leser: umschalten nur im Notfall
+
+Normalerweise liest **Docling** das Dokument: Es nimmt den Text, der im PDF steht, und
+erkennt Überschriften und Tabellen. Das kostet nichts, läuft lokal, und es ist der Weg, für
+den die Extraktion geprüft wurde.
+
+Lässt sich Docling auf einem Rechner nicht einrichten — 1,7 GB Python scheitern an einem
+Firmenproxy, einer alten CPU oder einer fehlenden Systembibliothek —, gibt es einen zweiten
+Weg: **Mistral OCR** liest das ganze Dokument als Bild.
+
+| | Docling (Vorgabe) | Mistral OCR |
+|---|---|---|
+| Einrichtung nötig | ja, einmalig 1,7 GB | **nein** |
+| Kosten | keine | rund 0,4 ct je Seite |
+| Mistral API Key | nur für gescannte Seiten | **zwingend** |
+| geprüfter Weg | **ja** | nein |
+
+Drei Dinge dazu:
+
+- **Es wird nichts selbsttätig umgeschaltet.** Fehlt Docling, bricht der Lauf ab und weist
+  auf den Schalter hin. Ein Werkzeug, das je nach Tagesform mal so und mal anders liest,
+  liefert Ergebnisse, die niemand mehr zuordnen kann.
+- **Jeder OCR-Lauf weist sich aus** — in der Kopfzeile steht dann „vollständig per Mistral
+  OCR gelesen (nicht der geprüfte Weg)". In der CSV steht das **nicht**; wer sie später
+  ansieht, kann es dort nicht mehr erkennen.
+- **Die Ergebnisse können abweichen.** Eine Seite per Bilderkennung zu lesen, deren Text
+  ohnehin im PDF steht, tauscht eine sichere Quelle gegen eine erkannte. Liest die
+  Erkennung „56OO mm" statt „5600 mm", ist der Wert falsch und das Zitat trotzdem
+  stimmig — auffallen würde das niemandem.
 
 ### Warum der Mistral API Key wichtig ist
 

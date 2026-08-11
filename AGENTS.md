@@ -67,6 +67,23 @@ LangSmith schicken, ohne dass es jemand bemerkt. Gesetzt in `umgebungSetzen()`
 Konfigurierbar ist alles, was von der **Umgebung** abhängt: Endpunkt, Schlüssel,
 Ergebnisverzeichnis. Nicht konfigurierbar ist alles, was das **Ergebnis** bestimmt:
 
+Eine Ausnahme gibt es, und sie ist begründet: den **PDF-Leser**. Er bestimmt das Ergebnis
+und ist trotzdem einstellbar, weil die Alternative auf manchen Rechnern „gar kein Ergebnis"
+heißt.
+
+| | `Docling` (Vorgabe) | `Mistral OCR` |
+|---|---|---|
+| Textseiten | nativer Text-Layer | Vision-OCR |
+| Docling nötig | ja (1,7 GB) | **nein** |
+| Kosten | keine | ~0,4 ct/Seite |
+| evaluiert | **ja** | nein |
+
+Umgeschaltet wird unter „Einstellungen → PDF-Leser"; das CLI übersetzt die Wahl nach
+`SZKS_PARSER`, die Verzweigung steckt im Vendor-Code. **Kein automatischer Rückfall** —
+scheitert Docling, bricht der Lauf ab und nennt den Schalter, statt selbsttätig auf einen
+anderen Leser zu wechseln. Und jeder Lauf mit OCR schreibt „vollständig per Mistral OCR
+gelesen (nicht der geprüfte Weg)" in die Kopfzeile, weil die CSV das nicht trägt.
+
 - **Modell-ID** (`gpt-5.6-luna`) — Konstante in `src/modell.ts`
 - **Prompts**, **Chunk-Größe**, **Zielschema** — in `vendor/`
 - **Denkaufwand des Modells** (`high`) — Konstante `REASONING_EFFORT` in `src/modell.ts`

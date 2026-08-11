@@ -17,6 +17,8 @@ import { doclingEinrichten, doclingVerfuegbar } from "./docling.js";
 import { modellZuruecksetzen } from "./modell.js";
 import { ergebnisVerzeichnisDefault, konfigDatei } from "./pfade.js";
 import { pruefeAnbieter, pruefeMistral, type PruefErgebnis } from "./pruefungen.js";
+// Nur der Typ — `import type` wird beim Übersetzen entfernt und lädt zur Laufzeit nichts.
+import type { ParserQuelle } from "../vendor/pdf-markdown.js";
 
 /** Entscheidet, ob der Ersteinrichtungsdialog läuft. Der Mistral-Schlüssel zählt nicht mit — er ist optional. */
 export function istEingerichtet(): boolean {
@@ -276,7 +278,32 @@ function schluesselStand(ausDatei: string, umgebungsName: string): string {
   return ausDatei ? "hinterlegt" : "nicht hinterlegt";
 }
 
-type Einstellung = "url" | "name" | "schluessel" | "mistral" | "ergebnisse" | "pruefen" | "docling";
+type Einstellung =
+  | "url"
+  | "name"
+  | "schluessel"
+  | "mistral"
+  | "leser"
+  | "ergebnisse"
+  | "pruefen"
+  | "docling";
+
+/**
+ * Der Umschalter zwischen den beiden Lesern.
+ *
+ * Bewusst **keine Auswahlliste**, sondern ein Umschalter: Es gibt genau zwei Zustände, und
+ * einer davon ist der Normalfall. Das Menü zeigt den aktuellen an; Auswählen kippt ihn.
+ *
+ * Der Hinweistext nennt bei OCR ausdrücklich, dass es nicht der geprüfte Weg ist. Das ist
+ * keine Ziererei: Wer den Schalter vor Wochen umgelegt hat und heute ein auffälliges
+ * Ergebnis sieht, hat sonst keinen Anhaltspunkt, dass mit einem anderen Leser gemessen
+ * wurde.
+ */
+function leserHinweis(parser: ParserQuelle): string {
+  return parser === "mistral-ocr"
+    ? "Mistral OCR — ganzes Dokument, ~0,4 ct/Seite, nicht der geprüfte Weg"
+    : "Docling — geprüfter Weg, kostenlos";
+}
 
 async function einstellungenMenue(cfg: Konfiguration): Promise<Einstellung | null> {
   const a = aufgeloest(cfg);
@@ -289,6 +316,7 @@ async function einstellungenMenue(cfg: Konfiguration): Promise<Einstellung | nul
       { wert: "name", name: "API Key Name", hinweis: a.apiKeyName },
       { wert: "schluessel", name: "API Key", hinweis: schluesselStand(cfg.apiKey, a.apiKeyName) },
       { wert: "mistral", name: "Mistral API Key", hinweis: schluesselStand(cfg.mistralApiKey, "MISTRAL_API_KEY") },
+      { wert: "leser", name: "PDF-Leser", hinweis: leserHinweis(a.parser) },
       { wert: "ergebnisse", name: "Output Directory", hinweis: a.ergebnisVerzeichnis },
       { wert: "pruefen", name: "Verbindung prüfen", hinweis: "kostenlos" },
       { wert: "docling", name: "Docling", hinweis: doclingDa ? "eingerichtet" : "nicht eingerichtet" },
@@ -339,6 +367,24 @@ export async function einstellungenDialog(): Promise<void> {
             false,
           );
           break;
+        case "leser": {
+          const neu: ParserQuelle = aufgeloest(cfg).parser === "docling" ? "mistral-ocr" : "docling";
+          cfg.parser = neu;
+          console.log();
+          console.log(`PDF-Leser: ${leserHinweis(neu)}`);
+          if (neu === "mistral-ocr") {
+            console.log("  Das ganze Dokument wird per Vision-OCR gelesen, auch Seiten mit Textebene.");
+            console.log("  Docling wird dafür nicht gebraucht, der Mistral API Key schon.");
+            console.log("  Die Ergebnisse können von denen des geprüften Wegs abweichen; jeder Lauf");
+            console.log("  weist den benutzten Leser aus.");
+            if (!aufgeloest(cfg).mistralApiKey) {
+              console.log();
+              console.log("  Achtung: Es ist noch kein Mistral API Key hinterlegt — ohne ihn schlägt");
+              console.log("  jeder Lauf fehl. Eine Zeile höher im Menü nachtragen.");
+            }
+          }
+          break;
+        }
         case "ergebnisse":
           cfg.ergebnisVerzeichnis = await frageErgebnisVerzeichnis(
             cfg.ergebnisVerzeichnis || ergebnisVerzeichnisDefault(),
