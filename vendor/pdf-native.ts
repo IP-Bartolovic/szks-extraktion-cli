@@ -65,7 +65,18 @@ import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 const STANDARD_FONT_DIR = (() => {
   try {
     const paketRoot = path.dirname(createRequire(import.meta.url).resolve("pdfjs-dist/package.json"));
-    return path.join(paketRoot, "standard_fonts") + path.sep;
+    // Der Schrägstrich am Ende ist **fest verdrahtet und nicht `path.sep`**. pdfjs prüft
+    // den Wert wörtlich mit `val.endsWith("/")` und wirft sonst
+    // `Invalid factory url: "…" must include trailing slash.`
+    //
+    // `path.sep` stand hier einmal und war der klassische Fall von „läuft bei mir": Auf
+    // macOS ist er `/` und die Prüfung ging durch, auf Windows ist er `\` und jeder Lauf
+    // brach ab, bevor eine Seite gelesen war. Aufgefallen ist es erst auf einem fremden
+    // Rechner (2026-08-11).
+    //
+    // Ein Schrägstrich im Rest eines Windows-Pfads ist unbedenklich: Die Win32-API nimmt
+    // `D:\…\standard_fonts/FoxitSans.pfb` genauso an wie den Backslash-Pfad.
+    return path.join(paketRoot, "standard_fonts") + "/";
   } catch {
     return undefined;
   }
