@@ -162,6 +162,22 @@ szks Anfrage_VKB-2026-0143.pdf
 szks "~/Downloads/Ausschreibung Los 7.pdf"     # Anführungszeichen sind erlaubt
 ```
 
+Ohne den globalen Befehl geht es genauso — dann aber **aus dem Projektordner heraus**:
+
+```bash
+cd szks-extraktion-cli
+npm start -- "C:\Daten\OneDrive\Desktop\test.pdf"
+```
+
+Zwei Stolperstellen, beide von npm und nicht vom Werkzeug:
+
+- **`npm start` will im Projektordner ausgeführt werden.** Ein Verzeichnis darüber meldet
+  npm `Could not read package.json` und nennt dabei den Pfad, an dem es gesucht hat — das
+  ist der Hinweis, dass nur ein `cd` fehlt.
+- **Die zwei Bindestriche** trennen die eigenen Argumente von denen für npm. Aktuelle
+  npm-Fassungen reichen sie bei `start` auch ohne durch; ein einzelner Bindestrich (`-"…"`)
+  wird dagegen als npm-Schalter gelesen und quittiert mit `Unknown cli config`.
+
 Die Datei wird sofort ausgewertet; danach erscheinen Zusammenfassung, CSV-Pfad und die
 gewohnten Punkte („Ordner öffnen", „Alle Werte anzeigen"), nur endet es dort statt im
 Hauptmenü.
