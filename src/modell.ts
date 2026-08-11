@@ -126,7 +126,22 @@ export function modell(): BaseChatModel {
 
   zwischengespeichert = new ChatOpenAI({
     model: beiOpenRouter ? OPENROUTER_PRAEFIX + MODELL_ID : MODELL_ID,
-    temperature: 0,
+    // **Kein `temperature`.** Hier stand `0`, und das war an beiden Endpunkten falsch —
+    // nur unterschiedlich sichtbar:
+    //
+    // | Endpunkt | Wirkung von `temperature: 0` |
+    // |---|---|
+    // | OpenAI direkt | **HTTP 400**: „Unsupported value: 'temperature' does not support 0 with this model. Only the default (1) value is supported." |
+    // | OpenRouter | stillschweigend verworfen — das Modell führt weder `temperature` noch `top_p` unter `supported_parameters` |
+    //
+    // Ein Denkmodell hat keine Temperatur, die sich stellen ließe. Der Wert war also nie
+    // wirksam; er hat nur den einen Endpunkt zum Absturz gebracht, der ehrlich genug ist,
+    // das zu melden. Weggelassen fällt das Feld ganz aus dem Anfragekörper (nachgeprüft
+    // über `invocationParams()`) — es wird also kein Ersatzwert gesendet.
+    //
+    // Determinismus stellt sich damit nicht ein, und das ist keine Verschlechterung: Er
+    // war auch mit `0` nicht gegeben, was zwei Läufe mit identischem Prompt und
+    // abweichendem Ergebnis belegen.
     apiKey: cfg.apiKey,
     configuration: { baseURL: cfg.baseUrl },
     // Chat Completions spricht jeder OpenAI-kompatible Anbieter, die Responses-API nicht.

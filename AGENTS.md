@@ -130,6 +130,25 @@ zurückdreht, stellt den Ausfall wieder her, und zwar unsichtbar.
 > **nie** gesendet worden — auch nicht im Vergleichslauf, der ihn zu belegen schien.
 > Solange das so ist, laufen CLI und Pipeline auf **verschiedenen** Stufen.
 
+## `temperature` ist kein Detail, sondern ein Abbruch
+
+Hier stand `temperature: 0`, und das war an beiden Endpunkten falsch — nur unterschiedlich
+sichtbar:
+
+| Endpunkt | Wirkung |
+|---|---|
+| OpenAI direkt | **HTTP 400** — „Unsupported value: 'temperature' does not support 0 with this model. Only the default (1) value is supported." |
+| OpenRouter | stillschweigend verworfen (weder `temperature` noch `top_p` unter `supported_parameters`) |
+
+Ein Denkmodell hat keine Temperatur, die sich stellen ließe. Der Wert war also nie wirksam
+und hat nur den Endpunkt zum Absturz gebracht, der ehrlich genug ist, das zu melden — und
+zwar erst, als das CLI seine Vorgabe von OpenRouter auf OpenAI umstellte. `temperature` ist
+deshalb ersatzlos entfallen; weggelassen fällt das Feld ganz aus dem Anfragekörper.
+
+**In der Pipeline steht es weiterhin** (`SZKS_EXTRAKTION_TEMPERATURE=0`), weil sie über
+OpenRouter geht und ein Eingriff in die Modellparameter die laufende Messreihe veränderte.
+Wer sie auf OpenAI direkt umstellt, muss die Variable vorher leeren.
+
 ## Zwei Details, die sonst still brechen
 
 1. **Provider-Routing ist OpenRouter-spezifisch.**
