@@ -2,3 +2,10 @@
 # Berührung CRLF zurück, und der Vendor-Prüfsummenabgleich (`npm run check:vendor`)
 # schlägt fehl, ohne dass jemand eine Zeile geändert hat.
 * text=auto eol=lf
+
+# Ausnahme fuer Batchdateien. `cmd.exe` liest seine Datei beim Abarbeiten
+# haeppchenweise und springt zwischen Byte-Positionen; bei reinen Befehlsfolgen geht
+# LF meist gut, bei `goto` auf ein Label nicht verlaesslich. Eine Startdatei, die je
+# nach Auscheckvorgang funktioniert oder nicht, ist der schlechteste Fehler dieser
+# Art -- er trifft genau den Rechner, auf dem niemand nachsehen kann.
+*.cmd text eol=crlf

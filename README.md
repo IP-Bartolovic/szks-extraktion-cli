@@ -162,6 +162,21 @@ szks Anfrage_VKB-2026-0143.pdf
 szks "~/Downloads/Ausschreibung Los 7.pdf"     # Anführungszeichen sind erlaubt
 ```
 
+#### Windows: PDF auf `AUSWERTEN.cmd` ziehen
+
+Im Projektordner liegt `AUSWERTEN.cmd`. **Eine PDF-Datei daraufziehen** startet die
+Auswertung sofort — kein Verzeichniswechsel, keine Anführungszeichen, keine Bindestriche.
+Das ist unter Windows der kürzeste Weg; wer mag, legt eine Verknüpfung davon auf den
+Desktop.
+
+Getippt geht es dort ebenso:
+
+```
+AUSWERTEN.cmd "C:\Daten\OneDrive\Desktop\test.pdf"
+```
+
+#### Über npm
+
 Ohne den globalen Befehl geht es genauso — dann aber **aus dem Projektordner heraus**:
 
 ```bash
