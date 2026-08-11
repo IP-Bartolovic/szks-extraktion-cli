@@ -15,7 +15,7 @@ import { menue } from "./auswahl.js";
 import { aufgeloest, laden, speichern, VORGABE, type Konfiguration } from "./config.js";
 import { doclingEinrichten, doclingVerfuegbar } from "./docling.js";
 import { modellZuruecksetzen } from "./modell.js";
-import { ergebnisVerzeichnisDefault, konfigDatei } from "./pfade.js";
+import { ergebnisVerzeichnisDefault, konfigDatei, REPO_ROOT } from "./pfade.js";
 import { pruefeAnbieter, pruefeMistral, type PruefErgebnis } from "./pruefungen.js";
 // Nur der Typ — `import type` wird beim Übersetzen entfernt und lädt zur Laufzeit nichts.
 import type { ParserQuelle } from "../vendor/pdf-markdown.js";
@@ -310,7 +310,19 @@ async function einstellungenMenue(cfg: Konfiguration): Promise<Einstellung | nul
   const doclingDa = await doclingVerfuegbar();
 
   return menue<Einstellung>({
-    message: "Einstellungen",
+    // Der Programmordner steht im Kopf, weil er sich **nicht** von selbst zeigt.
+    //
+    // `postinstall.mjs` ruft `npm link` auf, damit nach einem `npm install` sofort `szks`
+    // zur Verfügung steht. Die Kehrseite: Jeder weitere Klon zieht mit seinem `npm install`
+    // den globalen Namen an sich, still und ohne Rückfrage — der letzte gewinnt. Am
+    // 2026-08-11 lief `szks` deshalb aus einem zweiten Klon im Benutzerverzeichnis, zwei
+    // Commits hinter dem Arbeitsstand, und eine gerade eingebaute Einstellung fehlte im
+    // Menü.
+    //
+    // Erkennbar war das an nichts: Beide Klone teilen sich die Konfiguration im
+    // Benutzerprofil, die Oberfläche sah also in beiden Fällen vertraut aus — bis hin zum
+    // Ergebnisverzeichnis, das auf das *andere* Verzeichnis zeigte.
+    message: `Einstellungen  ·  Programm: ${REPO_ROOT}`,
     punkte: [
       { wert: "url", name: "Base URL", hinweis: a.baseUrl },
       { wert: "name", name: "API Key Name", hinweis: a.apiKeyName },
